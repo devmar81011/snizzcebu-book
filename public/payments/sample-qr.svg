@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="260" viewBox="0 0 220 260" role="img" aria-label="Snizzz Cebu sample payment QR">
+  <rect width="220" height="260" fill="#ffffff"/>
+  <rect x="24" y="24" width="172" height="172" fill="#ffffff" stroke="#111111" stroke-width="2"/>
+  <rect x="36" y="36" width="44" height="44" fill="#111111"/>
+  <rect x="48" y="48" width="20" height="20" fill="#ffffff"/>
+  <rect x="140" y="36" width="44" height="44" fill="#111111"/>
+  <rect x="152" y="48" width="20" height="20" fill="#ffffff"/>
+  <rect x="36" y="140" width="44" height="44" fill="#111111"/>
+  <rect x="48" y="152" width="20" height="20" fill="#ffffff"/>
+  <g fill="#111111">
+    <rect x="92" y="40" width="8" height="8"/><rect x="108" y="40" width="8" height="8"/><rect x="124" y="40" width="8" height="8"/>
+    <rect x="92" y="56" width="8" height="8"/><rect x="116" y="56" width="8" height="8"/><rect x="132" y="56" width="8" height="8"/>
+    <rect x="100" y="72" width="8" height="8"/><rect x="124" y="72" width="8" height="8"/><rect x="148" y="72" width="8" height="8"/>
+    <rect x="92" y="88" width="8" height="8"/><rect x="108" y="88" width="8" height="8"/><rect x="140" y="88" width="8" height="8"/>
+    <rect x="92" y="104" width="8" height="8"/><rect x="124" y="104" width="8" height="8"/><rect x="156" y="104" width="8" height="8"/>
+    <rect x="92" y="120" width="8" height="8"/><rect x="108" y="120" width="8" height="8"/><rect x="132" y="120" width="8" height="8"/>
+    <rect x="92" y="136" width="8" height="8"/><rect x="116" y="136" width="8" height="8"/><rect x="148" y="136" width="8" height="8"/>
+    <rect x="92" y="152" width="8" height="8"/><rect x="124" y="152" width="8" height="8"/><rect x="156" y="152" width="8" height="8"/>
+    <rect x="92" y="168" width="8" height="8"/><rect x="108" y="168" width="8" height="8"/><rect x="140" y="168" width="8" height="8"/>
+    <rect x="100" y="184" width="8" height="8"/><rect x="124" y="184" width="8" height="8"/><rect x="148" y="184" width="8" height="8"/>
+  </g>
+  <text x="110" y="232" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="11" font-weight="700" fill="#333333">SNIZZZ CEBU SAMPLE QR</text>
+</svg>

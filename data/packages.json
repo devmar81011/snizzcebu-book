@@ -1,0 +1,283 @@
+[
+  {
+    "id": "simala",
+    "title": "Simala Tour",
+    "minPax": 2,
+    "maxPax": 10,
+    "slotsAvailable": 10,
+    "days": 2,
+    "nights": 1,
+    "destinations": [
+      "Simala Shrine",
+      "Pasalubong shopping"
+    ],
+    "accommodation": [
+      "Hotel x"
+    ],
+    "inclusions": [
+      "Private air-conditioned van",
+      "Driver / coordinator",
+      "Parking & fuel"
+    ],
+    "inclusionsNote": "Rates are per person and vary by group size.",
+    "exclusions": [
+      "Meals",
+      "Entrance fees",
+      "Personal expenses"
+    ],
+    "exclusionsNote": "Optional add-ons available upon request.",
+    "ratesPerPax": [
+      1750,
+      1250,
+      960,
+      840,
+      750,
+      690,
+      630,
+      610,
+      590
+    ]
+  },
+  {
+    "id": "oslob-simala",
+    "title": "Oslob + Simala",
+    "minPax": 2,
+    "maxPax": 10,
+    "slotsAvailable": 10,
+    "days": 3,
+    "nights": 2,
+    "destinations": [
+      "Oslob Whale Shark watching",
+      "Simala Shrine"
+    ],
+    "accommodation": [
+      "Standard twin/double room",
+      "Hotel subject to availability"
+    ],
+    "inclusions": [
+      "Private air-conditioned van",
+      "Driver / coordinator",
+      "Parking & fuel"
+    ],
+    "inclusionsNote": "Whale shark interaction fees may apply on-site.",
+    "exclusions": [
+      "Meals",
+      "Whale shark boat / snorkel fees",
+      "Personal expenses"
+    ],
+    "exclusionsNote": "Bring extra cash for optional activities.",
+    "ratesPerPax": [
+      3250,
+      2420,
+      2130,
+      1950,
+      1750,
+      1610,
+      1570,
+      1480,
+      1390
+    ]
+  },
+  {
+    "id": "moalboal",
+    "title": "Moalboal + Badian",
+    "minPax": 2,
+    "maxPax": 10,
+    "destinations": [
+      "Moalboal sardine run",
+      "Kawasan Falls / Badian"
+    ],
+    "inclusions": [
+      "Private air-conditioned van",
+      "Driver / coordinator",
+      "Parking & fuel"
+    ],
+    "inclusionsNote": "Canyoneering is optional and quoted separately.",
+    "exclusions": [
+      "Meals",
+      "Entrance / activity fees",
+      "Personal expenses"
+    ],
+    "exclusionsNote": "Life jackets and guides may be rented on-site.",
+    "ratesPerPax": [
+      3250,
+      2420,
+      2130,
+      1950,
+      1750,
+      1610,
+      1570,
+      1480,
+      1390
+    ],
+    "slotsAvailable": 10,
+    "days": 1,
+    "nights": 0,
+    "accommodation": [
+      "Day tour — no overnight stay"
+    ]
+  },
+  {
+    "id": "city-mountain",
+    "title": "City Mountain Tour",
+    "minPax": 2,
+    "maxPax": 10,
+    "destinations": [
+      "Magellan’s Cross",
+      "Temple of Leah",
+      "Sirao Garden",
+      "Mountain View"
+    ],
+    "inclusions": [
+      "Private air-conditioned van",
+      "Driver / coordinator",
+      "Parking & fuel"
+    ],
+    "inclusionsNote": "Itinerary order may adjust with traffic and weather.",
+    "exclusions": [
+      "Meals",
+      "Entrance fees",
+      "Personal expenses"
+    ],
+    "exclusionsNote": "Absolutely no hidden charges on van package rates.",
+    "ratesPerPax": [
+      2220,
+      1740,
+      1420,
+      1330,
+      1290,
+      1260,
+      1170,
+      1160,
+      1040
+    ],
+    "slotsAvailable": 10,
+    "days": 1,
+    "nights": 0,
+    "accommodation": [
+      "Day tour — no overnight stay"
+    ]
+  },
+  {
+    "id": "all-mountain",
+    "title": "All Mountain Tour",
+    "minPax": 2,
+    "maxPax": 10,
+    "destinations": [
+      "Temple of Leah",
+      "Sirao Garden",
+      "Mountain View",
+      "Additional highland stops"
+    ],
+    "inclusions": [
+      "Private air-conditioned van",
+      "Driver / coordinator",
+      "Parking & fuel"
+    ],
+    "inclusionsNote": "Best for guests who want more highland photo stops.",
+    "exclusions": [
+      "Meals",
+      "Entrance fees",
+      "Personal expenses"
+    ],
+    "exclusionsNote": "Wear comfortable shoes for garden and viewpoint walks.",
+    "ratesPerPax": [
+      2620,
+      2140,
+      1790,
+      1770,
+      1580,
+      1460,
+      1310,
+      1340,
+      1280
+    ],
+    "slotsAvailable": 10,
+    "days": 1,
+    "nights": 0,
+    "accommodation": [
+      "Day tour — no overnight stay"
+    ]
+  },
+  {
+    "id": "bohol",
+    "title": "Bohol Countryside",
+    "minPax": 2,
+    "maxPax": 10,
+    "destinations": [
+      "Chocolate Hills",
+      "Tarsier Sanctuary",
+      "Loboc River / floating lunch area",
+      "Baclayon Church"
+    ],
+    "inclusions": [
+      "Private air-conditioned van",
+      "Driver / coordinator",
+      "Parking & fuel"
+    ],
+    "inclusionsNote": "Ferry tickets can be arranged as an add-on.",
+    "exclusions": [
+      "Meals",
+      "Entrance fees",
+      "Ferry tickets",
+      "Personal expenses"
+    ],
+    "exclusionsNote": "Loboc lunch is optional unless bundled separately.",
+    "ratesPerPax": [
+      4720,
+      3960,
+      3570,
+      3440,
+      3270,
+      3200,
+      3070,
+      2980,
+      2900
+    ],
+    "slotsAvailable": 10,
+    "days": 2,
+    "nights": 1,
+    "accommodation": [
+      "Standard twin/double room (1 night)",
+      "Hotel subject to availability"
+    ]
+  },
+  {
+    "id": "cebu-safari",
+    "title": "Cebu Safari Tour",
+    "minPax": 2,
+    "maxPax": 10,
+    "destinations": [
+      "Cebu Safari and Adventure Park"
+    ],
+    "inclusions": [
+      "Private air-conditioned van",
+      "Driver / coordinator",
+      "Parking & fuel"
+    ],
+    "inclusionsNote": "Park tickets are usually purchased separately.",
+    "exclusions": [
+      "Park entrance tickets",
+      "Meals",
+      "Personal expenses"
+    ],
+    "exclusionsNote": "Arrive early — park queues can be long on weekends.",
+    "ratesPerPax": [
+      3190,
+      2640,
+      2290,
+      2190,
+      2050,
+      2020,
+      1930,
+      1860,
+      1790
+    ],
+    "slotsAvailable": 10,
+    "days": 1,
+    "nights": 0,
+    "accommodation": [
+      "Day tour — no overnight stay"
+    ]
+  }
+]
