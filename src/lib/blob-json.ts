@@ -16,8 +16,10 @@ export async function readJsonBlob<T>(pathname: string): Promise<T | null> {
   try {
     const meta = await head(pathname, { token });
     const url = new URL(meta.url);
+    // Bust CDN cache after overwrites (Blob may serve stale content briefly).
     url.searchParams.set("cache", "0");
-    const res = await fetch(url, { cache: "no-store" });
+    url.searchParams.set("t", String(Date.now()));
+    const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {

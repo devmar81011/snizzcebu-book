@@ -46,8 +46,12 @@ async function ensureDataFile(): Promise<void> {
   try {
     await fs.access(DATA_PATH);
   } catch {
-    await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });
-    await fs.writeFile(DATA_PATH, "[]", "utf8");
+    try {
+      await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });
+      await fs.writeFile(DATA_PATH, "[]", "utf8");
+    } catch {
+      // Read-only FS (Vercel) — callers fall back to memory / empty list
+    }
   }
 }
 
@@ -58,15 +62,18 @@ function migrateList(parsed: unknown[]): Booking[] {
 export async function readBookings(): Promise<Booking[]> {
   const store = globalStore();
 
+  if (store.bookings) return structuredClone(store.bookings);
+
   if (hasBlobStore()) {
     const fromBlob = await readJsonBlob<unknown[]>(BLOB_PATH);
     if (Array.isArray(fromBlob)) {
       store.bookings = migrateList(fromBlob);
       return structuredClone(store.bookings);
     }
+    // Ignore repo data/bookings.json on Vercel when Blob has no file yet.
+    store.bookings = [];
+    return [];
   }
-
-  if (store.bookings) return structuredClone(store.bookings);
 
   await ensureDataFile();
   try {

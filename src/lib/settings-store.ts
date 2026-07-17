@@ -17,7 +17,7 @@ export type AppSettings = {
 
 const DATA_PATH = path.join(process.cwd(), "data", "settings.json");
 const BLOB_PATH = "data/settings.json";
-const DEFAULTS: AppSettings = {
+export const DEFAULT_SETTINGS: AppSettings = {
   qrImageUrl: "/payments/sample-qr.svg",
   adminPhone: "09568853596",
   adminWhatsApp: "09173201157",
@@ -25,6 +25,8 @@ const DEFAULTS: AppSettings = {
   pendingAlertHours: 4,
   morningDigest: true,
 };
+
+const DEFAULTS = DEFAULT_SETTINGS;
 
 type GlobalStore = { settings?: AppSettings };
 
@@ -75,16 +77,19 @@ async function readSettingsFromDisk(): Promise<AppSettings | null> {
 export async function readSettings(): Promise<AppSettings> {
   const store = globalStore();
 
+  // Same-instance writes win first (avoids brief Blob read lag after PUT).
+  if (store.settings) return { ...store.settings };
+
   if (hasBlobStore()) {
     const fromBlob = await readJsonBlob<Partial<AppSettings>>(BLOB_PATH);
     if (fromBlob) {
       store.settings = normalizeSettings(fromBlob);
       return { ...store.settings };
     }
+    // Do not fall back to repo data/settings.json on Vercel — it is a stale seed.
+    store.settings = { ...DEFAULTS };
+    return { ...DEFAULTS };
   }
-
-  // Prefer in-memory after a local write when Blob is unavailable.
-  if (store.settings) return { ...store.settings };
 
   const fromDisk = await readSettingsFromDisk();
   if (fromDisk) {
