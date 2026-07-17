@@ -1,5 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
+import { hasBlobStore, readJsonBlob, writeJsonBlob } from "@/lib/blob-json";
 
 export type AppSettings = {
   qrImageUrl: string;
@@ -15,6 +16,7 @@ export type AppSettings = {
 };
 
 const DATA_PATH = path.join(process.cwd(), "data", "settings.json");
+const BLOB_PATH = "data/settings.json";
 const DEFAULTS: AppSettings = {
   qrImageUrl: "/payments/sample-qr.svg",
   adminPhone: "09568853596",
@@ -61,19 +63,37 @@ function normalizeSettings(parsed: Partial<AppSettings>): AppSettings {
   };
 }
 
+async function readSettingsFromDisk(): Promise<AppSettings | null> {
+  try {
+    const raw = await fs.readFile(DATA_PATH, "utf8");
+    return normalizeSettings(JSON.parse(raw) as Partial<AppSettings>);
+  } catch {
+    return null;
+  }
+}
+
 export async function readSettings(): Promise<AppSettings> {
   const store = globalStore();
 
-  try {
-    const raw = await fs.readFile(DATA_PATH, "utf8");
-    const parsed = JSON.parse(raw) as Partial<AppSettings>;
-    store.settings = normalizeSettings(parsed);
-    return { ...store.settings };
-  } catch {
-    if (store.settings) return { ...store.settings };
-    store.settings = { ...DEFAULTS };
-    return { ...DEFAULTS };
+  if (hasBlobStore()) {
+    const fromBlob = await readJsonBlob<Partial<AppSettings>>(BLOB_PATH);
+    if (fromBlob) {
+      store.settings = normalizeSettings(fromBlob);
+      return { ...store.settings };
+    }
   }
+
+  // Prefer in-memory after a local write when Blob is unavailable.
+  if (store.settings) return { ...store.settings };
+
+  const fromDisk = await readSettingsFromDisk();
+  if (fromDisk) {
+    store.settings = fromDisk;
+    return { ...fromDisk };
+  }
+
+  store.settings = { ...DEFAULTS };
+  return { ...DEFAULTS };
 }
 
 export async function writeSettings(
@@ -82,11 +102,17 @@ export async function writeSettings(
   const store = globalStore();
   const next = normalizeSettings(settings);
   store.settings = next;
+
+  if (hasBlobStore()) {
+    await writeJsonBlob(BLOB_PATH, next);
+    return next;
+  }
+
   try {
     await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });
     await fs.writeFile(DATA_PATH, JSON.stringify(next, null, 2), "utf8");
   } catch {
-    // Vercel read-only FS
+    // Local FS may be read-only (e.g. Vercel without Blob).
   }
   return next;
 }

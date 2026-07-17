@@ -1,8 +1,10 @@
 import { promises as fs } from "fs";
 import path from "path";
 import type { Booking } from "@/lib/bookings";
+import { hasBlobStore, readJsonBlob, writeJsonBlob } from "@/lib/blob-json";
 
 const DATA_PATH = path.join(process.cwd(), "data", "bookings.json");
+const BLOB_PATH = "data/bookings.json";
 
 type GlobalStore = { bookings?: Booking[] };
 
@@ -49,8 +51,21 @@ async function ensureDataFile(): Promise<void> {
   }
 }
 
+function migrateList(parsed: unknown[]): Booking[] {
+  return parsed.map((item) => migrateBooking(item as Record<string, unknown>));
+}
+
 export async function readBookings(): Promise<Booking[]> {
   const store = globalStore();
+
+  if (hasBlobStore()) {
+    const fromBlob = await readJsonBlob<unknown[]>(BLOB_PATH);
+    if (Array.isArray(fromBlob)) {
+      store.bookings = migrateList(fromBlob);
+      return structuredClone(store.bookings);
+    }
+  }
+
   if (store.bookings) return structuredClone(store.bookings);
 
   await ensureDataFile();
@@ -58,11 +73,8 @@ export async function readBookings(): Promise<Booking[]> {
     const raw = await fs.readFile(DATA_PATH, "utf8");
     const parsed = JSON.parse(raw) as unknown[];
     if (Array.isArray(parsed)) {
-      const bookings = parsed.map((item) =>
-        migrateBooking(item as Record<string, unknown>),
-      );
-      store.bookings = bookings;
-      return structuredClone(bookings);
+      store.bookings = migrateList(parsed);
+      return structuredClone(store.bookings);
     }
   } catch {
     // fall through
@@ -75,6 +87,12 @@ export async function readBookings(): Promise<Booking[]> {
 export async function writeBookings(bookings: Booking[]): Promise<void> {
   const store = globalStore();
   store.bookings = bookings;
+
+  if (hasBlobStore()) {
+    await writeJsonBlob(BLOB_PATH, bookings);
+    return;
+  }
+
   try {
     await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });
     await fs.writeFile(DATA_PATH, JSON.stringify(bookings, null, 2), "utf8");

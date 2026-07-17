@@ -26,8 +26,16 @@ export async function uploadPublicImage(
     const blob = await put(`${options.folder}/${filename}`, file, {
       access: "public",
       token: process.env.BLOB_READ_WRITE_TOKEN,
+      addRandomSuffix: false,
     });
     return blob.url;
+  }
+
+  // On Vercel, local /public writes are ephemeral and not publicly served.
+  if (process.env.VERCEL) {
+    throw new Error(
+      "BLOB_READ_WRITE_TOKEN is required for uploads on Vercel",
+    );
   }
 
   const dir = path.join(process.cwd(), "public", options.folder);
