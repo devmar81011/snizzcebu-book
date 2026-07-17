@@ -11,6 +11,7 @@ type Props = {
   bookings: Booking[];
   blockedDates: BlockedDate[];
   packages: TourPackage[];
+  pendingAlertHours?: number;
 };
 
 function daysInMonth(year: number, month: number) {
@@ -21,7 +22,12 @@ function startWeekday(year: number, month: number) {
   return new Date(year, month, 1).getDay();
 }
 
-export function AdminCalendar({ bookings, blockedDates, packages }: Props) {
+export function AdminCalendar({
+  bookings,
+  blockedDates,
+  packages,
+  pendingAlertHours = 4,
+}: Props) {
   const router = useRouter();
   const today = useMemo(() => {
     const d = new Date();
@@ -294,6 +300,7 @@ export function AdminCalendar({ bookings, blockedDates, packages }: Props) {
                       <BookingActions
                         booking={b}
                         size="sm"
+                        pendingAlertHours={pendingAlertHours}
                         onUpdated={() => router.refresh()}
                       />
                     </div>

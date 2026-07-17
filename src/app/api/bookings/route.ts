@@ -18,8 +18,9 @@ import {
 } from "@/lib/bookings-store";
 import { pricePerPax, totalPrice } from "@/lib/destinations";
 import { getPackageById } from "@/lib/packages-store";
-import { promises as fs } from "fs";
-import path from "path";
+import { bookingHandoffMessage, formatBookingRef } from "@/lib/notify";
+import { readSettings } from "@/lib/settings-store";
+import { uploadPublicImage } from "@/lib/upload";
 
 export async function GET() {
   if (!(await isAdminAuthenticated())) {
@@ -62,6 +63,7 @@ export async function POST(request: Request) {
   const guests = Number(form.get("guests") || "0");
   const customerName = String(form.get("customerName") || "");
   const customerPhone = String(form.get("customerPhone") || "");
+  const paymentNote = String(form.get("paymentNote") || "").trim().slice(0, 120);
   const proof = form.get("paymentProof");
 
   const nameError = validateCustomerName(customerName);
@@ -119,13 +121,22 @@ export async function POST(request: Request) {
     );
   }
 
-  const ext = proof.type.split("/")[1]?.replace("jpeg", "jpg") || "jpg";
-  const filename = `proof-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
-  const dir = path.join(process.cwd(), "public", "uploads", "proofs");
-  await fs.mkdir(dir, { recursive: true });
-  const buffer = Buffer.from(await proof.arrayBuffer());
-  await fs.writeFile(path.join(dir, filename), buffer);
-  const paymentProofUrl = `/uploads/proofs/${filename}`;
+  let paymentProofUrl: string;
+  try {
+    paymentProofUrl = await uploadPublicImage(proof, {
+      folder: "uploads/proofs",
+      prefix: `proof-${pkg.id}`,
+      fallbackExt: "jpg",
+    });
+  } catch {
+    return NextResponse.json(
+      {
+        error:
+          "Could not save payment proof. Configure BLOB_READ_WRITE_TOKEN on Vercel, or try again.",
+      },
+      { status: 500 },
+    );
+  }
 
   const per = pricePerPax(pkg, guests);
   const total = totalPrice(pkg, guests);
@@ -140,20 +151,23 @@ export async function POST(request: Request) {
     customerName: customerName.trim(),
     customerPhone: normalizePhone(customerPhone),
     paymentProofUrl,
+    paymentNote,
     status: "pending",
   });
 
-  // Notify installed admin PWAs (best-effort; ignore push failures)
+  const tourLabel = tourDate.toLocaleDateString("en-PH", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+  const settings = await readSettings();
+  const ref = formatBookingRef(booking.id);
+
   try {
     const { sendPushToAll } = await import("@/lib/push");
-    const tourLabel = tourDate.toLocaleDateString("en-PH", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
     await sendPushToAll({
       title: "New Snizzz booking",
-      body: `${booking.customerName} · ${booking.packageTitle} · ${booking.guests} pax · ${tourLabel}`,
+      body: `${ref} · ${booking.customerName} · ${booking.packageTitle} · ${booking.guests} pax · ${tourLabel}`,
       url: "/admin/dashboard",
       tag: `booking-${booking.id}`,
     });
@@ -161,7 +175,25 @@ export async function POST(request: Request) {
     // push optional
   }
 
-  return NextResponse.json({ booking }, { status: 201 });
+  const handoff = bookingHandoffMessage({
+    bookingId: booking.id,
+    customerName: booking.customerName,
+    packageTitle: booking.packageTitle,
+    tourDateLabel: tourLabel,
+    guests: booking.guests,
+    totalLabel: `₱${booking.totalAmount.toLocaleString("en-PH")}`,
+    paymentNote: booking.paymentNote,
+  });
+
+  return NextResponse.json(
+    {
+      booking,
+      bookingRef: ref,
+      adminWhatsApp: settings.adminWhatsApp || settings.adminPhone,
+      handoffMessage: handoff,
+    },
+    { status: 201 },
+  );
 }
 
 export async function PATCH(request: Request) {

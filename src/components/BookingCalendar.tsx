@@ -14,13 +14,19 @@ import {
   validateCustomerName,
   validateCustomerPhone,
 } from "@/lib/bookings";
+import {
+  bookingHandoffMessage,
+  formatBookingRef,
+  messengerLink,
+  whatsAppLink,
+} from "@/lib/notify";
 
 type BookingCalendarProps = {
   activePlace: string;
   activeIsland: string;
 };
 
-type ModalStep = "package" | "details" | "payment" | "done";
+type ModalStep = "details" | "payment" | "done";
 
 type Availability = {
   ok: boolean;
@@ -58,6 +64,11 @@ function formatDuration(days: number, nights: number) {
   const d = days || 1;
   const n = nights ?? 0;
   return `${d} day${d === 1 ? "" : "s"} / ${n} night${n === 1 ? "" : "s"}`;
+}
+
+function abbreviateDestinations(items: string[], max = 3) {
+  if (items.length <= max) return items.join(" · ");
+  return `${items.slice(0, max).join(" · ")} +${items.length - max}`;
 }
 
 function DetailList({
@@ -110,13 +121,14 @@ export function BookingCalendar({
   });
   const [selected, setSelected] = useState<Date | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalStep, setModalStep] = useState<ModalStep>("package");
+  const [modalStep, setModalStep] = useState<ModalStep>("details");
   const [tourId, setTourId] = useState(
     seedPackages[1]?.id || seedPackages[0]?.id || "",
   );
   const [guests, setGuests] = useState(4);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [paymentNote, setPaymentNote] = useState("");
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofPreview, setProofPreview] = useState<string | null>(null);
   const [qrUrl, setQrUrl] = useState("");
@@ -126,6 +138,10 @@ export function BookingCalendar({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [phoneCopied, setPhoneCopied] = useState(false);
+  const [submittedBookingId, setSubmittedBookingId] = useState("");
+  const [submittedBookingRef, setSubmittedBookingRef] = useState("");
+  const [submittedWhatsApp, setSubmittedWhatsApp] = useState("");
+  const [submittedHandoff, setSubmittedHandoff] = useState("");
 
   const selectedTour =
     packages.find((t) => t.id === tourId) ?? packages[0] ?? seedPackages[0];
@@ -235,11 +251,11 @@ export function BookingCalendar({
   );
 
   const cells = useMemo(() => {
-    const total = daysInMonth(view.year, view.month);
+    const totalDays = daysInMonth(view.year, view.month);
     const offset = startWeekday(view.year, view.month);
     const items: Array<{ day: number | null; date: Date | null }> = [];
     for (let i = 0; i < offset; i += 1) items.push({ day: null, date: null });
-    for (let day = 1; day <= total; day += 1) {
+    for (let day = 1; day <= totalDays; day += 1) {
       items.push({ day, date: new Date(view.year, view.month, day) });
     }
     return items;
@@ -259,6 +275,13 @@ export function BookingCalendar({
 
   const perPerson = selectedTour ? pricePerPax(selectedTour, guests) : 0;
   const total = selectedTour ? totalPrice(selectedTour, guests) : 0;
+
+  const progressLabel =
+    modalStep === "details"
+      ? "Step 1 of 2 · Your details"
+      : modalStep === "payment"
+        ? "Step 2 of 2 · Pay"
+        : null;
 
   function shiftMonth(delta: number) {
     setView((prev) => {
@@ -285,7 +308,7 @@ export function BookingCalendar({
       return;
     }
     setError("");
-    setModalStep("package");
+    setModalStep("details");
     setModalOpen(true);
   }
 
@@ -293,8 +316,13 @@ export function BookingCalendar({
     if (modalStep === "done") {
       setCustomerName("");
       setCustomerPhone("");
+      setPaymentNote("");
       setProofFile(null);
-      setModalStep("package");
+      setSubmittedBookingId("");
+      setSubmittedBookingRef("");
+      setSubmittedWhatsApp("");
+      setSubmittedHandoff("");
+      setModalStep("details");
       setModalOpen(false);
       setError("");
       return;
@@ -303,17 +331,12 @@ export function BookingCalendar({
     setError("");
   }
 
-  function goToDetails() {
+  function goToPayment() {
     setError("");
     if (availability && !availability.ok) {
       setError(availability.reason || "Unavailable");
       return;
     }
-    setModalStep("details");
-  }
-
-  function goToPayment() {
-    setError("");
     const nameError = validateCustomerName(customerName);
     if (nameError) {
       setError(nameError);
@@ -354,6 +377,7 @@ export function BookingCalendar({
       form.set("guests", String(guests));
       form.set("customerName", customerName.trim());
       form.set("customerPhone", customerPhone.trim());
+      form.set("paymentNote", paymentNote.trim());
       form.set("paymentProof", proofFile);
 
       const response = await fetch("/api/bookings", {
@@ -366,8 +390,32 @@ export function BookingCalendar({
         setLoading(false);
         return;
       }
+
+      const bookingId = String(data.booking?.id || "");
+      const ref =
+        String(data.bookingRef || "") ||
+        (bookingId ? formatBookingRef(bookingId) : "");
+      const wa = String(data.adminWhatsApp || adminPhone || "");
+      const handoff =
+        String(data.handoffMessage || "") ||
+        (bookingId
+          ? bookingHandoffMessage({
+              bookingId,
+              customerName: customerName.trim(),
+              packageTitle: selectedTour.title,
+              tourDateLabel: formatShort(selected),
+              guests,
+              totalLabel: formatPhp(total),
+              paymentNote: paymentNote.trim() || undefined,
+            })
+          : "");
+
+      setSubmittedBookingId(bookingId);
+      setSubmittedBookingRef(ref);
+      setSubmittedWhatsApp(wa);
+      setSubmittedHandoff(handoff);
       setModalStep("done");
-      // refresh calendar markers after a successful booking
+
       const month = `${view.year}-${String(view.month + 1).padStart(2, "0")}`;
       const params = new URLSearchParams({
         packageId: selectedTour.id,
@@ -376,7 +424,7 @@ export function BookingCalendar({
       });
       fetch(`/api/availability?${params}`)
         .then((r) => r.json())
-        .then((data) => setMonthDays(data.days || {}))
+        .then((availData) => setMonthDays(availData.days || {}))
         .catch(() => undefined);
     } catch {
       setError("Network error — try again");
@@ -386,6 +434,27 @@ export function BookingCalendar({
   }
 
   if (!selectedTour) return null;
+
+  const doneRef =
+    submittedBookingRef ||
+    (submittedBookingId ? formatBookingRef(submittedBookingId) : "");
+  const doneHandoff =
+    submittedHandoff ||
+    (submittedBookingId && selected
+      ? bookingHandoffMessage({
+          bookingId: submittedBookingId,
+          customerName: customerName.trim(),
+          packageTitle: selectedTour.title,
+          tourDateLabel: formatShort(selected),
+          guests,
+          totalLabel: formatPhp(total),
+          paymentNote: paymentNote.trim() || undefined,
+        })
+      : "");
+  const waHref =
+    submittedWhatsApp && doneHandoff
+      ? whatsAppLink(submittedWhatsApp, doneHandoff)
+      : "";
 
   return (
     <>
@@ -460,6 +529,57 @@ export function BookingCalendar({
           </p>
         </div>
 
+        <div className="mb-3">
+          <span className="mb-1.5 block text-[0.68rem] font-semibold tracking-[0.14em] text-white/55 uppercase">
+            Guests
+          </span>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() =>
+                setGuests((g) => Math.max(selectedTour.minPax, g - 1))
+              }
+              disabled={guests <= selectedTour.minPax}
+              className="grid h-10 w-10 place-items-center rounded-xl border border-white/15 text-lg font-semibold transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Fewer guests"
+            >
+              −
+            </button>
+            <span className="min-w-14 text-center font-[family-name:var(--font-syne)] text-2xl font-bold text-sun">
+              {guests}
+              <span className="ml-1 text-sm font-semibold text-white/55">
+                pax
+              </span>
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                setGuests((g) => Math.min(selectedTour.maxPax, g + 1))
+              }
+              disabled={guests >= selectedTour.maxPax}
+              className="grid h-10 w-10 place-items-center rounded-xl border border-white/15 text-lg font-semibold transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="More guests"
+            >
+              +
+            </button>
+          </div>
+        </div>
+
+        <div className="mb-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm">
+          <div className="flex justify-between text-white/70">
+            <span>Per person</span>
+            <span className="font-semibold text-white">
+              {formatPhp(perPerson)}
+            </span>
+          </div>
+          <div className="mt-1.5 flex justify-between">
+            <span className="text-white/70">Estimated total</span>
+            <span className="font-[family-name:var(--font-syne)] text-base font-bold text-sun">
+              {formatPhp(total)}
+            </span>
+          </div>
+        </div>
+
         <div className="mb-3 flex items-center justify-between">
           <button
             type="button"
@@ -503,12 +623,26 @@ export function BookingCalendar({
             const inSpan = tourSpanKeys.has(key);
             const isToday = isSameDay(cell.date, today);
 
+            let title: string | undefined;
+            let cellLabel: string | null = null;
+            if (full) {
+              cellLabel = "Full";
+              title = "Fully booked";
+            } else if (blocked && !past) {
+              cellLabel = "Closed";
+              title = "Closed — not available";
+            } else if (past) {
+              title = "Past date";
+            } else if (unavailable) {
+              title = "Unavailable";
+            }
+
             return (
               <button
                 key={cell.date.toISOString()}
                 type="button"
                 disabled={unavailable}
-                title={unavailable ? "Unavailable" : undefined}
+                title={title}
                 onClick={() => {
                   setSelected(cell.date);
                   setError("");
@@ -529,7 +663,19 @@ export function BookingCalendar({
                           : "text-white/85",
                 ].join(" ")}
               >
-                <span>{cell.day}</span>
+                <span className={cellLabel ? "leading-none" : undefined}>
+                  {cell.day}
+                </span>
+                {cellLabel ? (
+                  <span
+                    className={[
+                      "mt-0.5 text-[0.5rem] leading-none font-semibold tracking-wide uppercase",
+                      isSelected ? "text-ink/70" : "text-white/40",
+                    ].join(" ")}
+                  >
+                    {cellLabel}
+                  </span>
+                ) : null}
               </button>
             );
           })}
@@ -598,14 +744,17 @@ export function BookingCalendar({
                   id="reserve-modal-title"
                   className="mt-1 font-[family-name:var(--font-syne)] text-xl font-bold"
                 >
-                  {modalStep === "package"
-                    ? "Package details"
-                    : modalStep === "details"
-                      ? "Your details"
-                      : modalStep === "payment"
-                        ? "Pay & upload proof"
-                        : "Booking confirmation"}
+                  {modalStep === "details"
+                    ? "Your details"
+                    : modalStep === "payment"
+                      ? "Pay & upload proof"
+                      : "Booking confirmation"}
                 </h3>
+                {progressLabel ? (
+                  <p className="mt-1 text-xs font-semibold tracking-wide text-white/45">
+                    {progressLabel}
+                  </p>
+                ) : null}
                 {modalStep !== "done" && selected ? (
                   <p className="mt-1 text-sm text-white/55">
                     Tour date · {formatShort(selected)} ·{" "}
@@ -627,8 +776,8 @@ export function BookingCalendar({
               )}
             </div>
 
-            {modalStep === "package" ? (
-              <div className="space-y-4">
+            {modalStep === "details" ? (
+              <div className="space-y-3">
                 <label className="block">
                   <span className="mb-1.5 block text-[0.68rem] font-semibold tracking-[0.14em] text-white/55 uppercase">
                     Select Package
@@ -666,7 +815,7 @@ export function BookingCalendar({
                   </div>
                 </label>
 
-                <label className="block">
+                <div>
                   <span className="mb-1.5 block text-[0.68rem] font-semibold tracking-[0.14em] text-white/55 uppercase">
                     Guests ({selectedTour.minPax}–{selectedTour.maxPax} pax)
                   </span>
@@ -676,7 +825,9 @@ export function BookingCalendar({
                       onClick={() =>
                         setGuests((g) => Math.max(selectedTour.minPax, g - 1))
                       }
-                      className="grid h-12 w-12 place-items-center rounded-xl border border-white/15 text-xl font-semibold"
+                      disabled={guests <= selectedTour.minPax}
+                      className="grid h-11 w-11 place-items-center rounded-xl border border-white/15 text-xl font-semibold disabled:opacity-40"
+                      aria-label="Fewer guests"
                     >
                       −
                     </button>
@@ -691,76 +842,44 @@ export function BookingCalendar({
                       onClick={() =>
                         setGuests((g) => Math.min(selectedTour.maxPax, g + 1))
                       }
-                      className="grid h-12 w-12 place-items-center rounded-xl border border-white/15 text-xl font-semibold"
+                      disabled={guests >= selectedTour.maxPax}
+                      className="grid h-11 w-11 place-items-center rounded-xl border border-white/15 text-xl font-semibold disabled:opacity-40"
+                      aria-label="More guests"
                     >
                       +
                     </button>
                   </div>
-                </label>
+                </div>
 
-                <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 space-y-3">
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-3 space-y-2">
                   <p className="text-sm font-semibold text-white">
                     {formatDuration(selectedTour.days, selectedTour.nights)}
                   </p>
-                  <DetailList
-                    title="Destinations"
-                    items={selectedTour.destinations}
-                  />
-                  <DetailList
-                    title="Accommodation"
-                    items={selectedTour.accommodation || []}
-                    emptyLabel="No accommodation listed"
-                  />
-                  <DetailList
-                    title="Inclusions"
-                    items={selectedTour.inclusions}
-                    note={selectedTour.inclusionsNote}
-                  />
-                  <DetailList
-                    title="Exclusions"
-                    items={selectedTour.exclusions}
-                    note={selectedTour.exclusionsNote}
-                  />
-                </div>
-
-                <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm">
-                  <div className="flex justify-between text-white/70">
-                    <span>Per person</span>
-                    <span className="font-semibold text-white">
-                      {formatPhp(perPerson)}
-                    </span>
-                  </div>
-                  <div className="mt-1.5 flex justify-between">
-                    <span className="text-white/70">Estimated total</span>
-                    <span className="font-[family-name:var(--font-syne)] text-lg font-bold text-sun">
+                  {selectedTour.destinations.length > 0 ? (
+                    selectedTour.destinations.length <= 3 ? (
+                      <DetailList
+                        title="Destinations"
+                        items={selectedTour.destinations}
+                      />
+                    ) : (
+                      <div>
+                        <p className="text-[0.65rem] font-semibold tracking-[0.14em] text-white/45 uppercase">
+                          Destinations
+                        </p>
+                        <p className="mt-1.5 text-sm text-white/80">
+                          {abbreviateDestinations(selectedTour.destinations)}
+                        </p>
+                      </div>
+                    )
+                  ) : null}
+                  <div className="flex justify-between text-sm">
+                    <span className="text-white/55">Est. total</span>
+                    <span className="font-semibold text-sun">
                       {formatPhp(total)}
                     </span>
                   </div>
-                  {availability && !availability.ok ? (
-                    <p className="mt-2 text-xs text-red-200">
-                      {availability.reason}
-                    </p>
-                  ) : null}
                 </div>
 
-                <button
-                  type="button"
-                  disabled={Boolean(availability && !availability.ok)}
-                  onClick={goToDetails}
-                  className="w-full rounded-xl bg-sun px-4 py-3 text-sm font-bold text-ink disabled:opacity-40"
-                >
-                  Continue · {formatPhp(total)}
-                </button>
-              </div>
-            ) : null}
-
-            {modalStep === "details" ? (
-              <div className="space-y-3">
-                <p className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/65">
-                  {selectedTour.title} · {selected ? formatShort(selected) : ""}{" "}
-                  · {formatDuration(selectedTour.days, selectedTour.nights)} ·{" "}
-                  {guests} pax · {formatPhp(total)}
-                </p>
                 <label className="block">
                   <span className="mb-1.5 block text-[0.68rem] font-semibold tracking-[0.14em] text-white/55 uppercase">
                     Full name
@@ -770,8 +889,10 @@ export function BookingCalendar({
                     onChange={(e) => setCustomerName(e.target.value)}
                     className="w-full rounded-xl border border-white/15 bg-white/5 px-3.5 py-2.5 text-sm outline-none focus:border-sun/60"
                     placeholder="Juan Dela Cruz"
+                    autoComplete="name"
                   />
                 </label>
+
                 <label className="block">
                   <span className="mb-1.5 block text-[0.68rem] font-semibold tracking-[0.14em] text-white/55 uppercase">
                     Mobile number
@@ -781,24 +902,34 @@ export function BookingCalendar({
                     onChange={(e) => setCustomerPhone(e.target.value)}
                     className="w-full rounded-xl border border-white/15 bg-white/5 px-3.5 py-2.5 text-sm outline-none focus:border-sun/60"
                     placeholder="09XXXXXXXXX"
+                    autoComplete="tel"
+                    inputMode="tel"
                   />
                 </label>
-                <div className="flex gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setModalStep("package")}
-                    className="flex-1 rounded-xl border border-white/20 px-3 py-2.5 text-sm font-semibold"
-                  >
-                    Back
-                  </button>
-                  <button
-                    type="button"
-                    onClick={goToPayment}
-                    className="flex-1 rounded-xl bg-sun px-3 py-2.5 text-sm font-bold text-ink"
-                  >
-                    Continue to pay
-                  </button>
-                </div>
+
+                <label className="block">
+                  <span className="mb-1.5 block text-[0.68rem] font-semibold tracking-[0.14em] text-white/55 uppercase">
+                    GCash reference / note{" "}
+                    <span className="normal-case tracking-normal text-white/35">
+                      (optional)
+                    </span>
+                  </span>
+                  <input
+                    value={paymentNote}
+                    onChange={(e) => setPaymentNote(e.target.value.slice(0, 120))}
+                    className="w-full rounded-xl border border-white/15 bg-white/5 px-3.5 py-2.5 text-sm outline-none focus:border-sun/60"
+                    placeholder="Reference # or short note"
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  disabled={Boolean(availability && !availability.ok)}
+                  onClick={goToPayment}
+                  className="w-full rounded-xl bg-sun px-4 py-3 text-sm font-bold text-ink disabled:opacity-40"
+                >
+                  Continue
+                </button>
               </div>
             ) : null}
 
@@ -810,6 +941,16 @@ export function BookingCalendar({
                   submitReservation();
                 }}
               >
+                <p className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/65">
+                  {selectedTour.title} · {selected ? formatShort(selected) : ""}{" "}
+                  · {guests} pax · {formatPhp(total)}
+                </p>
+
+                <p className="text-xs leading-relaxed text-white/55">
+                  Payment is required to hold your slot. Snizzz verifies proof
+                  before confirming. Non-refundable unless cancelled by Snizzz.
+                </p>
+
                 <div className="rounded-xl border border-white/12 bg-white/[0.04] p-4">
                   <p className="text-center text-sm font-semibold text-sun">
                     Pay {formatPhp(total)}
@@ -913,7 +1054,7 @@ export function BookingCalendar({
                     disabled={loading}
                     className="flex-1 rounded-xl bg-sun px-3 py-2.5 text-sm font-bold text-ink disabled:opacity-50"
                   >
-                    {loading ? "Submitting…" : "Submit reservation"}
+                    {loading ? "Submitting…" : "Submit"}
                   </button>
                 </div>
               </form>
@@ -928,6 +1069,11 @@ export function BookingCalendar({
                   <h3 className="font-[family-name:var(--font-syne)] text-xl font-bold text-white">
                     Booking received
                   </h3>
+                  {doneRef ? (
+                    <p className="mt-3 font-[family-name:var(--font-syne)] text-2xl font-bold tracking-wide text-sun">
+                      {doneRef}
+                    </p>
+                  ) : null}
                   <p className="mt-2 text-sm leading-relaxed text-white/70">
                     Thank you! Your reservation for{" "}
                     <span className="font-semibold text-white">
@@ -945,17 +1091,45 @@ export function BookingCalendar({
                     has been submitted.
                   </p>
                 </div>
-                <p className="rounded-xl border border-sun/30 bg-sun/10 px-4 py-3 text-sm leading-relaxed text-white/85">
-                  A Snizzz admin will contact you shortly to confirm your
-                  booking.
-                </p>
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="w-full rounded-xl bg-sun px-4 py-2.5 text-sm font-bold text-ink"
-                >
-                  Got it
-                </button>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left">
+                  <p className="text-[0.65rem] font-semibold tracking-[0.14em] text-sun uppercase">
+                    What happens next
+                  </p>
+                  <ol className="mt-2 list-decimal space-y-1.5 pl-4 text-sm text-white/75">
+                    <li>We verify payment</li>
+                    <li>We confirm your booking</li>
+                    <li>We contact you on WhatsApp/Messenger</li>
+                  </ol>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  {waHref ? (
+                    <a
+                      href={waHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full rounded-xl border border-[#25D366]/50 bg-[#25D366]/15 px-4 py-2.5 text-sm font-bold text-[#9ef0b8] transition hover:bg-[#25D366]/25"
+                    >
+                      Message on WhatsApp
+                    </a>
+                  ) : null}
+                  <a
+                    href={messengerLink()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full rounded-xl border border-white/20 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white/90 transition hover:bg-white/10"
+                  >
+                    Open Messenger
+                  </a>
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="w-full rounded-xl bg-sun px-4 py-2.5 text-sm font-bold text-ink"
+                  >
+                    Got it
+                  </button>
+                </div>
               </div>
             ) : null}
 

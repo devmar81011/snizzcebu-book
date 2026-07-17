@@ -4,6 +4,7 @@ import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { readBlockedDates } from "@/lib/blocked-dates-store";
 import { readBookings } from "@/lib/bookings-store";
 import { readPackages } from "@/lib/packages-store";
+import { readSettings } from "@/lib/settings-store";
 import { redirect } from "next/navigation";
 
 export const metadata = {
@@ -15,10 +16,11 @@ export default async function AdminCalendarPage() {
     redirect("/admin");
   }
 
-  const [bookings, blockedDates, packages] = await Promise.all([
+  const [bookings, blockedDates, packages, settings] = await Promise.all([
     readBookings(),
     readBlockedDates(),
     readPackages(),
+    readSettings(),
   ]);
 
   return (
@@ -27,6 +29,7 @@ export default async function AdminCalendarPage() {
         bookings={bookings}
         blockedDates={blockedDates}
         packages={packages}
+        pendingAlertHours={settings.pendingAlertHours}
       />
     </AdminShell>
   );

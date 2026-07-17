@@ -36,6 +36,7 @@ function migrateBooking(raw: Record<string, unknown>): Booking {
     customerName: String(raw.customerName || "Guest"),
     customerPhone: String(raw.customerPhone || ""),
     paymentProofUrl: String(raw.paymentProofUrl || ""),
+    paymentNote: String(raw.paymentNote || ""),
   };
 }
 
@@ -99,6 +100,7 @@ export async function createBooking(
     customerName: input.customerName,
     customerPhone: input.customerPhone,
     paymentProofUrl: input.paymentProofUrl,
+    paymentNote: input.paymentNote || "",
   };
   bookings.unshift(booking);
   await writeBookings(bookings);

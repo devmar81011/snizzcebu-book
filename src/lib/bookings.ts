@@ -13,6 +13,8 @@ export type Booking = {
   customerName: string;
   customerPhone: string;
   paymentProofUrl: string;
+  /** Optional GCash reference / note from guest */
+  paymentNote: string;
 };
 
 export type BlockedDate = {

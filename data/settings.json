@@ -1,5 +1,8 @@
 {
-  "qrImageUrl": "/payments/sample-qr.svg",
+  "qrImageUrl": "/payments/qr-1784249832126-uaxb8.png",
   "adminPhone": "09568853596",
-  "reminderDaysBefore": 1
+  "adminWhatsApp": "09173201157",
+  "reminderDaysBefore": 1,
+  "pendingAlertHours": 4,
+  "morningDigest": true
 }

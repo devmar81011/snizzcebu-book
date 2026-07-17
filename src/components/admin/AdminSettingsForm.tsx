@@ -9,8 +9,17 @@ import { AdminPwaNotifications } from "@/components/admin/AdminPwaNotifications"
 export function AdminSettingsForm({ initial }: { initial: AppSettings }) {
   const router = useRouter();
   const [adminPhone, setAdminPhone] = useState(initial.adminPhone);
+  const [adminWhatsApp, setAdminWhatsApp] = useState(
+    initial.adminWhatsApp || initial.adminPhone,
+  );
   const [reminderDaysBefore, setReminderDaysBefore] = useState(
     String(initial.reminderDaysBefore ?? 1),
+  );
+  const [pendingAlertHours, setPendingAlertHours] = useState(
+    String(initial.pendingAlertHours ?? 4),
+  );
+  const [morningDigest, setMorningDigest] = useState(
+    initial.morningDigest ?? true,
   );
   const [qrPreview, setQrPreview] = useState(initial.qrImageUrl || "");
   const [file, setFile] = useState<File | null>(null);
@@ -36,7 +45,10 @@ export function AdminSettingsForm({ initial }: { initial: AppSettings }) {
     setSettingsError("");
     const form = new FormData();
     form.set("adminPhone", adminPhone);
+    form.set("adminWhatsApp", adminWhatsApp);
     form.set("reminderDaysBefore", reminderDaysBefore);
+    form.set("pendingAlertHours", pendingAlertHours);
+    form.set("morningDigest", morningDigest ? "1" : "0");
     if (file) form.set("qr", file);
 
     const response = await fetch("/api/settings", {
@@ -54,6 +66,15 @@ export function AdminSettingsForm({ initial }: { initial: AppSettings }) {
     setQrPreview(data.settings?.qrImageUrl || qrPreview);
     if (data.settings?.reminderDaysBefore !== undefined) {
       setReminderDaysBefore(String(data.settings.reminderDaysBefore));
+    }
+    if (data.settings?.pendingAlertHours !== undefined) {
+      setPendingAlertHours(String(data.settings.pendingAlertHours));
+    }
+    if (data.settings?.adminWhatsApp) {
+      setAdminWhatsApp(data.settings.adminWhatsApp);
+    }
+    if (typeof data.settings?.morningDigest === "boolean") {
+      setMorningDigest(data.settings.morningDigest);
     }
     setFile(null);
     setSettingsMessage("Settings saved");
@@ -95,7 +116,8 @@ export function AdminSettingsForm({ initial }: { initial: AppSettings }) {
           Settings
         </h1>
         <p className="mt-1 text-sm text-white/55">
-          Payment, reminders, installable admin app, and password.
+          Payment, reminders, WhatsApp handoff, installable admin app, and
+          password.
         </p>
       </div>
 
@@ -103,24 +125,50 @@ export function AdminSettingsForm({ initial }: { initial: AppSettings }) {
 
       <section className="rounded-2xl border border-white/12 bg-white/[0.03] p-5">
         <h2 className="font-[family-name:var(--font-syne)] text-xl font-bold">
-          Booking reminders
+          Alerts & reminders
         </h2>
         <p className="mt-1 text-sm text-white/55">
-          How many days before a tour date to alert installed admin apps.
+          Push reminders for upcoming tours, morning digests, and how long a
+          pending booking can wait before it is flagged.
         </p>
-        <label className="mt-4 block max-w-xs">
-          <span className={labelClass}>Days before tour</span>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className={labelClass}>Days before tour reminder</span>
+            <input
+              type="number"
+              min={0}
+              max={30}
+              value={reminderDaysBefore}
+              onChange={(e) => setReminderDaysBefore(e.target.value)}
+              className={fieldClass}
+            />
+            <span className="mt-1 block text-xs text-white/40">
+              1 = remind one day before. 0 = on the tour day.
+            </span>
+          </label>
+          <label className="block">
+            <span className={labelClass}>Pending alert after (hours)</span>
+            <input
+              type="number"
+              min={1}
+              max={72}
+              value={pendingAlertHours}
+              onChange={(e) => setPendingAlertHours(e.target.value)}
+              className={fieldClass}
+            />
+            <span className="mt-1 block text-xs text-white/40">
+              Pending bookings older than this show “needs reply”.
+            </span>
+          </label>
+        </div>
+        <label className="mt-4 flex items-center gap-3 text-sm text-white/80">
           <input
-            type="number"
-            min={0}
-            max={30}
-            value={reminderDaysBefore}
-            onChange={(e) => setReminderDaysBefore(e.target.value)}
-            className={fieldClass}
+            type="checkbox"
+            checked={morningDigest}
+            onChange={(e) => setMorningDigest(e.target.checked)}
+            className="h-4 w-4 rounded border-white/30"
           />
-          <span className="mt-1 block text-xs text-white/40">
-            Example: 1 = remind one day before. 0 = remind on the tour day.
-          </span>
+          Send morning digest push (today&apos;s tours + pending count)
         </label>
         <button
           type="button"
@@ -128,7 +176,7 @@ export function AdminSettingsForm({ initial }: { initial: AppSettings }) {
           onClick={saveSettings}
           className="mt-4 rounded-xl bg-sun px-4 py-2.5 text-sm font-bold text-ink disabled:opacity-50"
         >
-          {savingSettings ? "Saving…" : "Save reminder setting"}
+          {savingSettings ? "Saving…" : "Save alert settings"}
         </button>
       </section>
 
@@ -137,8 +185,8 @@ export function AdminSettingsForm({ initial }: { initial: AppSettings }) {
           Payment & contact
         </h2>
         <p className="mt-1 text-sm text-white/55">
-          Upload an optional QR. Checkout always shows GCash instructions using
-          the admin phone number. If a QR is set, it appears above those steps.
+          GCash number for checkout, WhatsApp for guest handoff after booking,
+          and optional QR.
         </p>
 
         <div className="mt-5 grid gap-5 md:grid-cols-[11rem_minmax(0,1fr)]">
@@ -168,6 +216,20 @@ export function AdminSettingsForm({ initial }: { initial: AppSettings }) {
                 className={fieldClass}
                 placeholder="09XXXXXXXXX"
               />
+            </label>
+
+            <label className="block">
+              <span className={labelClass}>WhatsApp for guest handoff</span>
+              <input
+                value={adminWhatsApp}
+                onChange={(e) => setAdminWhatsApp(e.target.value)}
+                className={fieldClass}
+                placeholder="09XXXXXXXXX"
+              />
+              <span className="mt-1 block text-xs text-white/40">
+                Guests tap this after booking to message Snizzz with their
+                booking ref.
+              </span>
             </label>
 
             <label className="block">

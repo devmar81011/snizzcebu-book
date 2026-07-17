@@ -8,6 +8,7 @@ import {
   sumIncome,
 } from "@/lib/bookings";
 import { readBookings } from "@/lib/bookings-store";
+import { readSettings } from "@/lib/settings-store";
 import { redirect } from "next/navigation";
 
 export const metadata = {
@@ -19,7 +20,10 @@ export default async function AdminDashboardPage() {
     redirect("/admin");
   }
 
-  const bookings = await readBookings();
+  const [bookings, settings] = await Promise.all([
+    readBookings(),
+    readSettings(),
+  ]);
   const now = new Date();
   const week = sumIncome(bookings, startOfWeek(now), endOfDay(now));
   const month = sumIncome(bookings, startOfMonth(now), endOfDay(now));
@@ -39,6 +43,7 @@ export default async function AdminDashboardPage() {
           pendingCount,
         }}
         bookings={bookings}
+        pendingAlertHours={settings.pendingAlertHours}
       />
     </AdminShell>
   );

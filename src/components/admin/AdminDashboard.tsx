@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import type { Booking } from "@/lib/bookings";
 import { formatMoney } from "@/lib/bookings";
 import { BookingActions } from "@/components/admin/BookingActions";
+import { formatBookingRef, pendingAgeHours } from "@/lib/notify";
 
 type DashboardProps = {
   stats: {
@@ -16,6 +17,7 @@ type DashboardProps = {
     pendingCount: number;
   };
   bookings: Booking[];
+  pendingAlertHours?: number;
 };
 
 function formatDate(iso: string) {
@@ -26,8 +28,17 @@ function formatDate(iso: string) {
   });
 }
 
-export function AdminDashboard({ stats, bookings }: DashboardProps) {
+export function AdminDashboard({
+  stats,
+  bookings,
+  pendingAlertHours = 4,
+}: DashboardProps) {
   const router = useRouter();
+  const overdueCount = bookings.filter(
+    (b) =>
+      b.status === "pending" &&
+      pendingAgeHours(b.createdAt) >= pendingAlertHours,
+  ).length;
 
   return (
     <div>
@@ -36,10 +47,10 @@ export function AdminDashboard({ stats, bookings }: DashboardProps) {
       </h1>
       <p className="mt-1 text-sm text-white/55">
         Income counts completed (paid) bookings only. Pending awaits payment
-        verification.
+        verification — overdue ones need a reply.
       </p>
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl border border-sun/25 bg-sun/10 px-5 py-5">
           <p className="text-[0.68rem] font-semibold tracking-[0.16em] text-sun uppercase">
             This week
@@ -76,6 +87,36 @@ export function AdminDashboard({ stats, bookings }: DashboardProps) {
           </p>
         </div>
 
+        <div
+          className={[
+            "rounded-2xl border px-5 py-5",
+            overdueCount > 0
+              ? "border-red-400/30 bg-red-500/10"
+              : "border-amber-300/25 bg-amber-400/10",
+          ].join(" ")}
+        >
+          <p
+            className={[
+              "text-[0.68rem] font-semibold tracking-[0.16em] uppercase",
+              overdueCount > 0 ? "text-red-200" : "text-amber-200",
+            ].join(" ")}
+          >
+            Pending
+          </p>
+          <p
+            className={[
+              "mt-3 font-[family-name:var(--font-syne)] text-3xl font-bold",
+              overdueCount > 0 ? "text-red-100" : "text-amber-100",
+            ].join(" ")}
+          >
+            {stats.pendingCount}
+          </p>
+          <p className="mt-1 text-sm text-white/60">
+            {overdueCount > 0
+              ? `${overdueCount} need reply (>${pendingAlertHours}h)`
+              : "awaiting payment check"}
+          </p>
+        </div>
       </div>
 
       <div className="mt-10">
@@ -96,60 +137,79 @@ export function AdminDashboard({ stats, bookings }: DashboardProps) {
                   <th className="px-4 py-3 font-semibold">Package</th>
                   <th className="px-4 py-3 font-semibold">Total</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="min-w-[11rem] px-4 py-3 font-semibold">
+                  <th className="min-w-[14rem] px-4 py-3 font-semibold">
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {bookings.map((booking) => (
-                  <tr
-                    key={booking.id}
-                    className="border-b border-white/8 last:border-0"
-                  >
-                    <td className="px-4 py-3">
-                      <p className="font-medium">{booking.customerName}</p>
-                      <p className="text-xs text-white/50">
-                        {booking.customerPhone}
-                      </p>
-                    </td>
-                    <td className="px-4 py-3 text-white/70">
-                      {formatDate(booking.tourDate)}
-                    </td>
-                    <td className="px-4 py-3">
-                      {booking.packageTitle}
-                      <span className="mt-0.5 block font-[family-name:var(--font-syne)] text-xl font-bold text-sun">
-                        {booking.guests}{" "}
-                        <span className="text-xs font-semibold text-white/55">
-                          pax
+                {bookings.map((booking) => {
+                  const overdue =
+                    booking.status === "pending" &&
+                    pendingAgeHours(booking.createdAt) >= pendingAlertHours;
+                  return (
+                    <tr
+                      key={booking.id}
+                      className={[
+                        "border-b border-white/8 last:border-0",
+                        overdue ? "bg-red-500/[0.06]" : "",
+                      ].join(" ")}
+                    >
+                      <td className="px-4 py-3">
+                        <p className="font-medium">{booking.customerName}</p>
+                        <p className="text-xs text-white/50">
+                          {booking.customerPhone}
+                        </p>
+                        <p className="mt-0.5 text-[0.7rem] font-semibold tracking-wide text-sun/80">
+                          {formatBookingRef(booking.id)}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3 text-white/70">
+                        {formatDate(booking.tourDate)}
+                      </td>
+                      <td className="px-4 py-3">
+                        {booking.packageTitle}
+                        <span className="mt-0.5 block font-[family-name:var(--font-syne)] text-xl font-bold text-sun">
+                          {booking.guests}{" "}
+                          <span className="text-xs font-semibold text-white/55">
+                            pax
+                          </span>
                         </span>
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 font-semibold text-sun">
-                      {formatMoney(booking.totalAmount)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={[
-                          "rounded-md px-2 py-1 text-xs font-semibold uppercase tracking-wide",
-                          booking.status === "completed"
-                            ? "bg-palm/20 text-[#d7f5a8]"
-                            : booking.status === "pending"
-                              ? "bg-amber-400/15 text-amber-100"
-                              : "bg-white/10 text-white/50",
-                        ].join(" ")}
-                      >
-                        {booking.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <BookingActions
-                        booking={booking}
-                        onUpdated={() => router.refresh()}
-                      />
-                    </td>
-                  </tr>
-                ))}
+                        {booking.paymentNote ? (
+                          <span className="mt-1 block text-xs text-white/45">
+                            Note: {booking.paymentNote}
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-3 font-semibold text-sun">
+                        {formatMoney(booking.totalAmount)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={[
+                            "rounded-md px-2 py-1 text-xs font-semibold uppercase tracking-wide",
+                            booking.status === "completed"
+                              ? "bg-palm/20 text-[#d7f5a8]"
+                              : booking.status === "pending"
+                                ? overdue
+                                  ? "bg-red-500/20 text-red-100"
+                                  : "bg-amber-400/15 text-amber-100"
+                                : "bg-white/10 text-white/50",
+                          ].join(" ")}
+                        >
+                          {booking.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <BookingActions
+                          booking={booking}
+                          pendingAlertHours={pendingAlertHours}
+                          onUpdated={() => router.refresh()}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
