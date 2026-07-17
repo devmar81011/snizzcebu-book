@@ -10,6 +10,10 @@
   --foam: #f7faf9;
   --glass: rgba(15, 28, 26, 0.52);
   --glass-border: rgba(255, 255, 255, 0.18);
+  --scrollbar-size: 8px;
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: rgba(247, 250, 249, 0.16);
+  --scrollbar-thumb-hover: rgba(200, 245, 42, 0.4);
 }
 
 @theme inline {
@@ -42,6 +46,59 @@ body {
   background: var(--ink);
   color: var(--foam);
   font-family: var(--font-dm-sans), sans-serif;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+body::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+body::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+body::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+body::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+/* Thin theme scrollbars for modals / panels (Firefox + WebKit) */
+.snizz-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.snizz-scroll::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+.snizz-scroll::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  margin-block: 6px;
+}
+
+.snizz-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.snizz-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+.snizz-scroll::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 @keyframes kenburns {

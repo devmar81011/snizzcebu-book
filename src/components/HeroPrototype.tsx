@@ -113,13 +113,7 @@ export function HeroPrototype() {
             <p className="mt-2 font-[family-name:var(--font-syne)] text-3xl font-bold tracking-tight sm:text-4xl">
               {active.place}
             </p>
-            <div className="mt-5 flex flex-wrap items-center gap-3">
-              <a
-                href="#book"
-                className="rounded-full bg-sun px-5 py-2.5 text-sm font-bold text-ink transition hover:brightness-105"
-              >
-                Book this route
-              </a>
+            <div className="mt-5">
               <button
                 type="button"
                 onClick={() => goTo(index + 1)}
@@ -148,7 +142,7 @@ export function HeroPrototype() {
           </div>
         </div>
 
-        <div id="book" className="mt-8 md:hidden">
+        <div className="mt-8 md:hidden">
           <BookingCalendar
             activePlace={active.place}
             activeIsland={active.island}

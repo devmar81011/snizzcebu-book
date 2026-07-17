@@ -729,7 +729,7 @@ export function BookingCalendar({
             if (e.target === e.currentTarget) closeModal();
           }}
         >
-          <div className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-2xl border border-white/15 bg-[#0c1a1c] p-5 text-foam shadow-[0_24px_80px_rgba(0,0,0,0.55)]">
+          <div className="snizz-scroll max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-2xl border border-white/15 bg-[#0c1a1c] p-5 text-foam shadow-[0_24px_80px_rgba(0,0,0,0.55)]">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
                 <p className="text-[0.65rem] font-semibold tracking-[0.16em] text-sun uppercase">

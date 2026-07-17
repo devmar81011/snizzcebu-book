@@ -48,3 +48,5 @@ next-env.d.ts
 # admin password hash (local)
 /data/admin-credentials.json
 
+
+.env*

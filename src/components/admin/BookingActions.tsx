@@ -160,7 +160,7 @@ export function BookingActions({
             if (e.target === e.currentTarget) setProofOpen(false);
           }}
         >
-          <div className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-2xl border border-white/15 bg-[#0c1a1c] p-4 shadow-2xl">
+          <div className="snizz-scroll max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-2xl border border-white/15 bg-[#0c1a1c] p-4 shadow-2xl">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
                 <p className="text-[0.65rem] font-semibold tracking-[0.14em] text-sun uppercase">
