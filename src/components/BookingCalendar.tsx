@@ -66,11 +66,6 @@ function formatDuration(days: number, nights: number) {
   return `${d} day${d === 1 ? "" : "s"} / ${n} night${n === 1 ? "" : "s"}`;
 }
 
-function abbreviateDestinations(items: string[], max = 3) {
-  if (items.length <= max) return items.join(" · ");
-  return `${items.slice(0, max).join(" · ")} +${items.length - max}`;
-}
-
 function DetailList({
   title,
   items,
@@ -851,28 +846,30 @@ export function BookingCalendar({
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-3 space-y-2">
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-3 space-y-3">
                   <p className="text-sm font-semibold text-white">
                     {formatDuration(selectedTour.days, selectedTour.nights)}
                   </p>
-                  {selectedTour.destinations.length > 0 ? (
-                    selectedTour.destinations.length <= 3 ? (
-                      <DetailList
-                        title="Destinations"
-                        items={selectedTour.destinations}
-                      />
-                    ) : (
-                      <div>
-                        <p className="text-[0.65rem] font-semibold tracking-[0.14em] text-white/45 uppercase">
-                          Destinations
-                        </p>
-                        <p className="mt-1.5 text-sm text-white/80">
-                          {abbreviateDestinations(selectedTour.destinations)}
-                        </p>
-                      </div>
-                    )
-                  ) : null}
-                  <div className="flex justify-between text-sm">
+                  <DetailList
+                    title="Destinations"
+                    items={selectedTour.destinations}
+                  />
+                  <DetailList
+                    title="Accommodation"
+                    items={selectedTour.accommodation || []}
+                    emptyLabel="No accommodation listed"
+                  />
+                  <DetailList
+                    title="Inclusions"
+                    items={selectedTour.inclusions}
+                    note={selectedTour.inclusionsNote}
+                  />
+                  <DetailList
+                    title="Exclusions"
+                    items={selectedTour.exclusions}
+                    note={selectedTour.exclusionsNote}
+                  />
+                  <div className="flex justify-between border-t border-white/10 pt-2 text-sm">
                     <span className="text-white/55">Est. total</span>
                     <span className="font-semibold text-sun">
                       {formatPhp(total)}
