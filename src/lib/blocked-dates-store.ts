@@ -1,8 +1,10 @@
 import { promises as fs } from "fs";
 import path from "path";
 import type { BlockedDate } from "@/lib/bookings";
+import { hasBlobStore, readJsonBlob, writeJsonBlob } from "@/lib/blob-json";
 
 const DATA_PATH = path.join(process.cwd(), "data", "blocked-dates.json");
+const BLOB_PATH = "data/blocked-dates.json";
 
 type GlobalStore = { blocked?: BlockedDate[] };
 
@@ -18,14 +20,28 @@ async function ensureDataFile(): Promise<void> {
   try {
     await fs.access(DATA_PATH);
   } catch {
-    await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });
-    await fs.writeFile(DATA_PATH, "[]", "utf8");
+    try {
+      await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });
+      await fs.writeFile(DATA_PATH, "[]", "utf8");
+    } catch {
+      // Read-only FS (Vercel) — fall back to memory / empty list
+    }
   }
 }
 
 export async function readBlockedDates(): Promise<BlockedDate[]> {
   const store = globalStore();
   if (store.blocked) return structuredClone(store.blocked);
+
+  if (hasBlobStore()) {
+    const fromBlob = await readJsonBlob<BlockedDate[]>(BLOB_PATH);
+    if (Array.isArray(fromBlob)) {
+      store.blocked = fromBlob;
+      return structuredClone(fromBlob);
+    }
+    store.blocked = [];
+    return [];
+  }
 
   await ensureDataFile();
   try {
@@ -46,11 +62,17 @@ export async function readBlockedDates(): Promise<BlockedDate[]> {
 export async function writeBlockedDates(blocked: BlockedDate[]): Promise<void> {
   const store = globalStore();
   store.blocked = blocked;
+
+  if (hasBlobStore()) {
+    await writeJsonBlob(BLOB_PATH, blocked);
+    return;
+  }
+
   try {
     await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });
     await fs.writeFile(DATA_PATH, JSON.stringify(blocked, null, 2), "utf8");
   } catch {
-    // Vercel read-only FS
+    // Local FS may be read-only (e.g. Vercel without Blob).
   }
 }
 

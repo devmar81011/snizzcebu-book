@@ -1,5 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
+import { hasBlobStore, readJsonBlob, writeJsonBlob } from "@/lib/blob-json";
 
 export type PushSubscriptionJSON = {
   endpoint: string;
@@ -11,6 +12,7 @@ export type PushSubscriptionJSON = {
 };
 
 const DATA_PATH = path.join(process.cwd(), "data", "push-subscriptions.json");
+const BLOB_PATH = "data/push-subscriptions.json";
 
 type GlobalStore = { subscriptions?: PushSubscriptionJSON[] };
 
@@ -24,6 +26,17 @@ function globalStore(): GlobalStore {
 
 export async function readPushSubscriptions(): Promise<PushSubscriptionJSON[]> {
   const store = globalStore();
+
+  if (hasBlobStore()) {
+    const fromBlob = await readJsonBlob<PushSubscriptionJSON[]>(BLOB_PATH);
+    if (Array.isArray(fromBlob)) {
+      store.subscriptions = fromBlob;
+      return structuredClone(fromBlob);
+    }
+    if (store.subscriptions) return structuredClone(store.subscriptions);
+    return [];
+  }
+
   try {
     const raw = await fs.readFile(DATA_PATH, "utf8");
     const parsed = JSON.parse(raw) as PushSubscriptionJSON[];
@@ -43,6 +56,12 @@ export async function writePushSubscriptions(
 ): Promise<void> {
   const store = globalStore();
   store.subscriptions = subscriptions;
+
+  if (hasBlobStore()) {
+    await writeJsonBlob(BLOB_PATH, subscriptions);
+    return;
+  }
+
   try {
     await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });
     await fs.writeFile(
@@ -51,7 +70,7 @@ export async function writePushSubscriptions(
       "utf8",
     );
   } catch {
-    // Vercel read-only FS — keep in-memory for this instance
+    // Local FS may be read-only (e.g. Vercel without Blob).
   }
 }
 

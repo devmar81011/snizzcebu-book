@@ -1,8 +1,10 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { promises as fs } from "fs";
 import path from "path";
+import { hasBlobStore, readJsonBlob, writeJsonBlob } from "@/lib/blob-json";
 
 const DATA_PATH = path.join(process.cwd(), "data", "admin-credentials.json");
+const BLOB_PATH = "data/admin-credentials.json";
 
 type Credentials = {
   passwordHash: string;
@@ -46,6 +48,15 @@ async function readCredentialsFile(): Promise<Credentials | null> {
   const store = globalStore();
   if (store.credentials) return { ...store.credentials };
 
+  if (hasBlobStore()) {
+    const fromBlob = await readJsonBlob<Partial<Credentials>>(BLOB_PATH);
+    if (fromBlob?.passwordHash) {
+      store.credentials = { passwordHash: fromBlob.passwordHash };
+      return { ...store.credentials };
+    }
+    return null;
+  }
+
   try {
     const raw = await fs.readFile(DATA_PATH, "utf8");
     const parsed = JSON.parse(raw) as Partial<Credentials>;
@@ -76,10 +87,16 @@ export async function setPassword(newPassword: string): Promise<void> {
   };
   const store = globalStore();
   store.credentials = credentials;
+
+  if (hasBlobStore()) {
+    await writeJsonBlob(BLOB_PATH, credentials);
+    return;
+  }
+
   try {
     await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });
     await fs.writeFile(DATA_PATH, JSON.stringify(credentials, null, 2), "utf8");
   } catch {
-    // Vercel read-only FS — keep in memory for this instance
+    // Local FS may be read-only (e.g. Vercel without Blob).
   }
 }

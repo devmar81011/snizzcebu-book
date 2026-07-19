@@ -5,8 +5,10 @@ import {
   seedPackages,
   type TourPackage,
 } from "@/lib/destinations";
+import { hasBlobStore, readJsonBlob, writeJsonBlob } from "@/lib/blob-json";
 
 const DATA_PATH = path.join(process.cwd(), "data", "packages.json");
+const BLOB_PATH = "data/packages.json";
 
 type GlobalStore = {
   packages?: TourPackage[];
@@ -23,41 +25,57 @@ async function ensureDataFile(): Promise<void> {
   try {
     await fs.access(DATA_PATH);
   } catch {
-    await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });
-    await fs.writeFile(
-      DATA_PATH,
-      JSON.stringify(seedPackages, null, 2),
-      "utf8",
-    );
+    try {
+      await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });
+      await fs.writeFile(
+        DATA_PATH,
+        JSON.stringify(seedPackages, null, 2),
+        "utf8",
+      );
+    } catch {
+      // Read-only FS (Vercel) — fall back to seed in memory
+    }
   }
+}
+
+async function readPackagesFromDisk(): Promise<TourPackage[] | null> {
+  await ensureDataFile();
+  try {
+    const raw = await fs.readFile(DATA_PATH, "utf8");
+    const parsed = JSON.parse(raw) as TourPackage[];
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.map(normalizePackage);
+    }
+  } catch {
+    // fall through
+  }
+  return null;
 }
 
 export async function readPackages(): Promise<TourPackage[]> {
   const store = globalStore();
 
-  await ensureDataFile();
-  try {
-    const stat = await fs.stat(DATA_PATH);
-    if (
-      store.packages?.length &&
-      store.mtimeMs === stat.mtimeMs
-    ) {
-      return structuredClone(store.packages.map(normalizePackage));
-    }
-
-    const raw = await fs.readFile(DATA_PATH, "utf8");
-    const parsed = JSON.parse(raw) as TourPackage[];
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      store.packages = parsed.map(normalizePackage);
-      store.mtimeMs = stat.mtimeMs;
-      return structuredClone(store.packages);
-    }
-  } catch {
-    // fall through to seed / memory
-  }
-
+  // Same-instance writes win first (avoids brief Blob read lag after save).
   if (store.packages?.length) {
     return structuredClone(store.packages.map(normalizePackage));
+  }
+
+  if (hasBlobStore()) {
+    const fromBlob = await readJsonBlob<TourPackage[]>(BLOB_PATH);
+    if (Array.isArray(fromBlob) && fromBlob.length > 0) {
+      store.packages = fromBlob.map(normalizePackage);
+      return structuredClone(store.packages);
+    }
+    // No Blob file yet → fall back to repo seed (read-only on Vercel).
+    const fromDisk = await readPackagesFromDisk();
+    store.packages = fromDisk ?? seedPackages;
+    return structuredClone(store.packages.map(normalizePackage));
+  }
+
+  const fromDisk = await readPackagesFromDisk();
+  if (fromDisk) {
+    store.packages = fromDisk;
+    return structuredClone(fromDisk);
   }
 
   store.packages = seedPackages;
@@ -68,15 +86,16 @@ export async function writePackages(packages: TourPackage[]): Promise<void> {
   const store = globalStore();
   store.packages = packages;
 
+  if (hasBlobStore()) {
+    await writeJsonBlob(BLOB_PATH, packages);
+    return;
+  }
+
   try {
     await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });
     await fs.writeFile(DATA_PATH, JSON.stringify(packages, null, 2), "utf8");
-    const stat = await fs.stat(DATA_PATH);
-    store.mtimeMs = stat.mtimeMs;
   } catch {
-    // On Vercel the filesystem is read-only; in-memory store still works
-    // for the current serverless instance.
-    store.mtimeMs = Date.now();
+    // Local FS may be read-only (e.g. Vercel without Blob).
   }
 }
 
