@@ -13,6 +13,7 @@ const BLOB_PATH = "data/packages.json";
 type GlobalStore = {
   packages?: TourPackage[];
   mtimeMs?: number;
+  localWriteAt?: number;
 };
 
 function globalStore(): GlobalStore {
@@ -20,6 +21,9 @@ function globalStore(): GlobalStore {
   if (!g.__snizzzPackages) g.__snizzzPackages = {};
   return g.__snizzzPackages;
 }
+
+/** Trust local memory briefly after a write — Blob get() can lag right after put(). */
+const LOCAL_WRITE_GRACE_MS = 15_000;
 
 async function ensureDataFile(): Promise<void> {
   try {
@@ -55,11 +59,24 @@ async function readPackagesFromDisk(): Promise<TourPackage[] | null> {
 export async function readPackages(): Promise<TourPackage[]> {
   const store = globalStore();
 
-  // Always prefer Blob so every serverless instance sees the latest admin edits.
-  // Fall back to in-memory only when Blob is briefly unavailable after a write.
   if (hasBlobStore()) {
+    if (
+      store.packages?.length &&
+      store.localWriteAt &&
+      Date.now() - store.localWriteAt < LOCAL_WRITE_GRACE_MS
+    ) {
+      return structuredClone(store.packages.map(normalizePackage));
+    }
+
     const fromBlob = await readJsonBlob<TourPackage[]>(BLOB_PATH);
     if (Array.isArray(fromBlob) && fromBlob.length > 0) {
+      if (
+        store.packages?.length &&
+        store.localWriteAt &&
+        Date.now() - store.localWriteAt < LOCAL_WRITE_GRACE_MS
+      ) {
+        return structuredClone(store.packages.map(normalizePackage));
+      }
       store.packages = fromBlob.map(normalizePackage);
       return structuredClone(store.packages);
     }
@@ -89,6 +106,7 @@ export async function readPackages(): Promise<TourPackage[]> {
 export async function writePackages(packages: TourPackage[]): Promise<void> {
   const store = globalStore();
   store.packages = packages;
+  store.localWriteAt = Date.now();
 
   if (hasBlobStore()) {
     await writeJsonBlob(BLOB_PATH, packages);

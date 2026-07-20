@@ -115,7 +115,19 @@ export function AdminCalendar({
         return;
       }
       if (Array.isArray(data.blockedDates)) {
-        setBlockedDates(data.blockedDates);
+        // Prefer API list, but always ensure the just-written entry is present.
+        const list = data.blockedDates as BlockedDate[];
+        if (data.blockedDate) {
+          const entry = data.blockedDate as BlockedDate;
+          const withoutDup = list.filter(
+            (b) =>
+              !(b.date === entry.date && b.packageId === entry.packageId) &&
+              b.id !== entry.id,
+          );
+          setBlockedDates([...withoutDup, entry]);
+        } else {
+          setBlockedDates(list);
+        }
       } else if (data.blockedDate) {
         setBlockedDates((prev) => {
           const withoutDup = prev.filter(
