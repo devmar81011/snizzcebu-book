@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import {
+  allTimePeriodKey,
   monthPeriodKey,
   readCommissionPayouts,
   removeCommissionPayout,
@@ -39,7 +40,11 @@ export async function POST(request: Request) {
   const commissionAmount = Number(form.get("commissionAmount") || "0");
   const proof = form.get("proof");
 
-  if (periodType !== "week" && periodType !== "month") {
+  if (
+    periodType !== "week" &&
+    periodType !== "month" &&
+    periodType !== "alltime"
+  ) {
     return NextResponse.json({ error: "Invalid period type" }, { status: 400 });
   }
   if (!label) {
@@ -81,12 +86,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid week range" }, { status: 400 });
     }
     periodKey = weekPeriodKey(from, to);
-  } else {
+  } else if (periodType === "month") {
     const yearMonth = String(form.get("yearMonth") || "");
     if (!/^\d{4}-\d{2}$/.test(yearMonth)) {
       return NextResponse.json({ error: "Invalid month" }, { status: 400 });
     }
     periodKey = monthPeriodKey(yearMonth);
+  } else {
+    periodKey = allTimePeriodKey();
   }
 
   let proofUrl: string;
