@@ -14,7 +14,7 @@ function globalStore(): GlobalStore {
   return g.__snizzzBookings;
 }
 
-const LOCAL_WRITE_GRACE_MS = 15_000;
+const LOCAL_WRITE_GRACE_MS = 60_000;
 
 function migrateBooking(raw: Record<string, unknown>): Booking {
   const statusRaw = String(raw.status || "pending");

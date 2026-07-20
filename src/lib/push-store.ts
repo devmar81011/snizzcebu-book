@@ -27,7 +27,7 @@ function globalStore(): GlobalStore {
   return g.__snizzzPushSubs;
 }
 
-const LOCAL_WRITE_GRACE_MS = 15_000;
+const LOCAL_WRITE_GRACE_MS = 60_000;
 
 export async function readPushSubscriptions(): Promise<PushSubscriptionJSON[]> {
   const store = globalStore();

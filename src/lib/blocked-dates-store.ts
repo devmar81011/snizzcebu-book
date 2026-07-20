@@ -6,8 +6,8 @@ import { hasBlobStore, readJsonBlob, writeJsonBlob } from "@/lib/blob-json";
 const DATA_PATH = path.join(process.cwd(), "data", "blocked-dates.json");
 const BLOB_PATH = "data/blocked-dates.json";
 
-/** Trust local memory briefly after a write — Blob get() can lag right after put(). */
-const LOCAL_WRITE_GRACE_MS = 15_000;
+/** Trust local memory briefly after a write. */
+const LOCAL_WRITE_GRACE_MS = 60_000;
 
 type GlobalStore = {
   blocked?: BlockedDate[];

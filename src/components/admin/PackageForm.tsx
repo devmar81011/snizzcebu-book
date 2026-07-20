@@ -173,8 +173,8 @@ export function PackageForm({ mode, initial }: PackageFormProps) {
         setSaving(false);
         return;
       }
-      router.refresh();
-      router.push("/admin/packages");
+      // Hard navigation avoids Next client router showing a stale packages list.
+      window.location.assign("/admin/packages");
     } catch {
       setError("Network error — try again");
       setSaving(false);
