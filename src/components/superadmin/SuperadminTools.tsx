@@ -170,14 +170,14 @@ export function SuperadminTools() {
           </label>
         ))}
 
-        <label className="mt-4 block">
+        <label className="mt-6 block">
           <span className="text-[0.68rem] font-semibold tracking-[0.14em] text-white/55 uppercase">
             Type RESET to confirm
           </span>
           <input
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
-            className="mt-1.5 w-full max-w-xs rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm outline-none"
+            className="mt-3 w-full max-w-xs rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm outline-none"
             placeholder="RESET"
             autoComplete="off"
           />
