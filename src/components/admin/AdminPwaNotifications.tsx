@@ -12,9 +12,15 @@ function urlBase64ToUint8Array(base64String: string) {
 }
 
 export function AdminPwaNotifications() {
-  const [supported, setSupported] = useState(false);
-  const [permission, setPermission] =
-    useState<NotificationPermission>("default");
+  const [supported] = useState(() =>
+    typeof window !== "undefined" &&
+    "serviceWorker" in navigator &&
+    "PushManager" in window &&
+    "Notification" in window,
+  );
+  const [permission, setPermission] = useState<NotificationPermission>(() =>
+    typeof Notification !== "undefined" ? Notification.permission : "default",
+  );
   const [enabled, setEnabled] = useState(false);
   const [installEvent, setInstallEvent] = useState<{
     prompt: () => Promise<void>;
@@ -22,18 +28,19 @@ export function AdminPwaNotifications() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [configured, setConfigured] = useState(false);
+  const [subscriberCount, setSubscriberCount] = useState(0);
+
+  async function refreshPushStatus() {
+    try {
+      const data = await fetch("/api/push/vapid").then((r) => r.json());
+      setConfigured(Boolean(data.configured));
+      setSubscriberCount(Number(data.subscriberCount) || 0);
+    } catch {
+      setConfigured(false);
+    }
+  }
 
   useEffect(() => {
-    setSupported(
-      typeof window !== "undefined" &&
-        "serviceWorker" in navigator &&
-        "PushManager" in window &&
-        "Notification" in window,
-    );
-    if (typeof Notification !== "undefined") {
-      setPermission(Notification.permission);
-    }
-
     const onBeforeInstall = (event: Event) => {
       event.preventDefault();
       const e = event as Event & {
@@ -58,10 +65,7 @@ export function AdminPwaNotifications() {
       })
       .catch(() => undefined);
 
-    fetch("/api/push/vapid")
-      .then((r) => r.json())
-      .then((data) => setConfigured(Boolean(data.configured)))
-      .catch(() => setConfigured(false));
+    refreshPushStatus().catch(() => undefined);
 
     return () => {
       window.removeEventListener("beforeinstallprompt", onBeforeInstall);
@@ -75,7 +79,9 @@ export function AdminPwaNotifications() {
       const perm = await Notification.requestPermission();
       setPermission(perm);
       if (perm !== "granted") {
-        setMessage("Notification permission was denied");
+        setMessage(
+          "Notification permission was denied. On Android/Chrome: site settings → Notifications → Allow, then try again.",
+        );
         setBusy(false);
         return;
       }
@@ -83,7 +89,7 @@ export function AdminPwaNotifications() {
       const vapid = await fetch("/api/push/vapid").then((r) => r.json());
       if (!vapid.configured || !vapid.publicKey) {
         setMessage(
-          "Push keys are not set yet. Add VAPID keys in .env (see .env.example).",
+          "Push keys are missing on the server. Add NEXT_PUBLIC_VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY in Vercel → Project → Settings → Environment Variables, then redeploy.",
         );
         setBusy(false);
         return;
@@ -112,9 +118,14 @@ export function AdminPwaNotifications() {
 
       setEnabled(true);
       setConfigured(true);
-      setMessage("Notifications enabled on this device");
+      await refreshPushStatus();
+      setMessage(
+        "Notifications enabled on this device. Tap “Send test notification” to confirm.",
+      );
     } catch {
-      setMessage("Could not enable notifications on this browser");
+      setMessage(
+        "Could not enable notifications. Use Chrome/Edge on Android or desktop. iPhone needs iOS 16.4+ and Add to Home Screen first.",
+      );
     }
     setBusy(false);
   }
@@ -134,9 +145,31 @@ export function AdminPwaNotifications() {
         await sub.unsubscribe();
       }
       setEnabled(false);
+      await refreshPushStatus();
       setMessage("Notifications turned off on this device");
     } catch {
       setMessage("Could not disable notifications");
+    }
+    setBusy(false);
+  }
+
+  async function sendTest() {
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/push/test", { method: "POST" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setMessage(data.error || "Test notification failed");
+        setBusy(false);
+        return;
+      }
+      setSubscriberCount(Number(data.subscriberCount) || subscriberCount);
+      setMessage(
+        `Test sent to ${data.subscriberCount} device(s) (${data.sent} delivered, ${data.failed} failed). Check the notification shade / lock screen.`,
+      );
+    } catch {
+      setMessage("Network error while sending test notification");
     }
     setBusy(false);
   }
@@ -149,7 +182,8 @@ export function AdminPwaNotifications() {
         </h2>
         <p className="mt-2 text-sm text-white/55">
           This browser does not support installable PWA push notifications.
-          Try Chrome or Edge on desktop/Android.
+          Try Chrome or Edge on Android/desktop. On iPhone, open this admin in
+          Safari, Add to Home Screen, then open the installed app.
         </p>
       </section>
     );
@@ -161,9 +195,17 @@ export function AdminPwaNotifications() {
         App & notifications
       </h2>
       <p className="mt-1 text-sm text-white/55">
-        Install this admin as an app, then enable notifications. New bookings
-        and day-before reminders will ping every device that enabled them.
+        Push alerts go to admin devices only (not guest customers). Installing
+        the app is not enough — each phone must tap Enable notifications while
+        logged into admin.
       </p>
+
+      <ol className="mt-3 list-decimal space-y-1 pl-5 text-xs text-white/55">
+        <li>Install / Add to Home Screen (optional but recommended).</li>
+        <li>Open admin Settings on that same device.</li>
+        <li>Tap Enable notifications and allow the browser permission.</li>
+        <li>Tap Send test notification — you should see a ping immediately.</li>
+      </ol>
 
       <div className="mt-4 flex flex-wrap gap-2">
         {installEvent ? (
@@ -191,22 +233,32 @@ export function AdminPwaNotifications() {
             {busy ? "Enabling…" : "Enable notifications"}
           </button>
         ) : (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={disableNotifications}
-            className="rounded-xl border border-white/20 px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
-          >
-            {busy ? "Updating…" : "Disable notifications"}
-          </button>
+          <>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={sendTest}
+              className="rounded-xl bg-sun px-4 py-2.5 text-sm font-bold text-ink disabled:opacity-50"
+            >
+              {busy ? "Sending…" : "Send test notification"}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={disableNotifications}
+              className="rounded-xl border border-white/20 px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
+            >
+              {busy ? "Updating…" : "Disable notifications"}
+            </button>
+          </>
         )}
       </div>
 
       <ul className="mt-4 space-y-1 text-xs text-white/50">
         <li>
-          Status:{" "}
+          This device:{" "}
           <span className="text-white/75">
-            {enabled ? "Notifications on" : "Notifications off"}
+            {enabled ? "Subscribed" : "Not subscribed"}
           </span>
         </li>
         <li>
@@ -215,8 +267,14 @@ export function AdminPwaNotifications() {
         <li>
           Push keys:{" "}
           <span className="text-white/75">
-            {configured ? "Configured" : "Missing — add VAPID keys in .env"}
+            {configured
+              ? "Configured"
+              : "Missing — add VAPID keys in Vercel env"}
           </span>
+        </li>
+        <li>
+          Devices registered:{" "}
+          <span className="text-white/75">{subscriberCount}</span>
         </li>
       </ul>
 
