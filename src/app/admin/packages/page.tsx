@@ -4,6 +4,8 @@ import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { readPackages } from "@/lib/packages-store";
 import { redirect } from "next/navigation";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Packages | Admin",
 };

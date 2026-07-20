@@ -31,17 +31,21 @@ async function ensureDataFile(): Promise<void> {
 
 export async function readBlockedDates(): Promise<BlockedDate[]> {
   const store = globalStore();
-  if (store.blocked) return structuredClone(store.blocked);
 
+  // Always prefer Blob so every serverless instance sees the latest blocks.
+  // Fall back to in-memory only when Blob is briefly unavailable after a write.
   if (hasBlobStore()) {
     const fromBlob = await readJsonBlob<BlockedDate[]>(BLOB_PATH);
     if (Array.isArray(fromBlob)) {
       store.blocked = fromBlob;
       return structuredClone(fromBlob);
     }
+    if (store.blocked) return structuredClone(store.blocked);
     store.blocked = [];
     return [];
   }
+
+  if (store.blocked) return structuredClone(store.blocked);
 
   await ensureDataFile();
   try {

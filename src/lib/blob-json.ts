@@ -50,6 +50,8 @@ export async function writeJsonBlob(
     allowOverwrite: true,
     contentType: "application/json",
     token,
-    cacheControlMaxAge: 60,
+    // Admin JSON must not sit behind a long CDN TTL — stale reads cause
+    // multi-click "save" / "block date" bugs across serverless instances.
+    cacheControlMaxAge: 0,
   });
 }

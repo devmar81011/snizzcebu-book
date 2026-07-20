@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import {
   ensureRatesLength,
   listToLines,
@@ -38,43 +38,58 @@ function buildRateFields(
   return rates.map((r) => String(r));
 }
 
+function formFromPackage(pkg?: TourPackage): FormState {
+  return {
+    title: pkg?.title || "",
+    minPax: String(pkg?.minPax ?? 2),
+    maxPax: String(pkg?.maxPax ?? 10),
+    days: String(pkg?.days ?? 1),
+    nights: String(pkg?.nights ?? 0),
+    destinations: listToLines(pkg?.destinations || []),
+    accommodation: listToLines(pkg?.accommodation || []),
+    inclusions: listToLines(pkg?.inclusions || []),
+    inclusionsNote: pkg?.inclusionsNote || "",
+    exclusions: listToLines(pkg?.exclusions || []),
+    exclusionsNote: pkg?.exclusionsNote || "",
+    rates: buildRateFields(
+      pkg?.minPax ?? 2,
+      pkg?.maxPax ?? 10,
+      pkg?.ratesPerPax || [],
+    ),
+  };
+}
+
+function withAdjustedRates(
+  prev: FormState,
+  nextMinPax: string,
+  nextMaxPax: string,
+): FormState {
+  const nextMin = Math.max(1, Number(nextMinPax) || 1);
+  const rawMax = Number(nextMaxPax);
+  if (!Number.isFinite(rawMax) || rawMax < 1) {
+    return { ...prev, minPax: nextMinPax, maxPax: nextMaxPax };
+  }
+  const nextMax = Math.max(nextMin, rawMax);
+  const numeric = prev.rates.map((r) => {
+    const n = Number(r);
+    return Number.isFinite(n) ? n : 0;
+  });
+  return {
+    ...prev,
+    minPax: nextMinPax,
+    maxPax: nextMaxPax,
+    rates: buildRateFields(nextMin, nextMax, numeric),
+  };
+}
+
 export function PackageForm({ mode, initial }: PackageFormProps) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState<FormState>({
-    title: initial?.title || "",
-    minPax: String(initial?.minPax ?? 2),
-    maxPax: String(initial?.maxPax ?? 10),
-    days: String(initial?.days ?? 1),
-    nights: String(initial?.nights ?? 0),
-    destinations: listToLines(initial?.destinations || []),
-    accommodation: listToLines(initial?.accommodation || []),
-    inclusions: listToLines(initial?.inclusions || []),
-    inclusionsNote: initial?.inclusionsNote || "",
-    exclusions: listToLines(initial?.exclusions || []),
-    exclusionsNote: initial?.exclusionsNote || "",
-    rates: buildRateFields(
-      initial?.minPax ?? 2,
-      initial?.maxPax ?? 10,
-      initial?.ratesPerPax || [],
-    ),
-  });
+  const [form, setForm] = useState<FormState>(() => formFromPackage(initial));
 
   const minPax = Number(form.minPax) || 1;
   const maxPax = Number(form.maxPax) || minPax;
-
-  useEffect(() => {
-    setForm((prev) => {
-      const nextMin = Number(prev.minPax) || 1;
-      const nextMax = Math.max(nextMin, Number(prev.maxPax) || nextMin);
-      const numeric = prev.rates.map((r) => Number(r) || 0);
-      return {
-        ...prev,
-        rates: buildRateFields(nextMin, nextMax, numeric),
-      };
-    });
-  }, [form.minPax, form.maxPax]);
 
   const fieldClass =
     "mt-1.5 w-full rounded-xl border border-white/15 bg-white/5 px-3.5 py-2.5 text-sm text-foam outline-none transition focus:border-sun/60";
@@ -90,7 +105,15 @@ export function PackageForm({ mode, initial }: PackageFormProps) {
   }, [minPax, maxPax]);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => {
+      if (key === "minPax") {
+        return withAdjustedRates(prev, value as string, prev.maxPax);
+      }
+      if (key === "maxPax") {
+        return withAdjustedRates(prev, prev.minPax, value as string);
+      }
+      return { ...prev, [key]: value };
+    });
   }
 
   function updateRate(index: number, value: string) {
@@ -150,8 +173,8 @@ export function PackageForm({ mode, initial }: PackageFormProps) {
         setSaving(false);
         return;
       }
-      router.push("/admin/packages");
       router.refresh();
+      router.push("/admin/packages");
     } catch {
       setError("Network error — try again");
       setSaving(false);

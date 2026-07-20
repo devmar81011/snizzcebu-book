@@ -5,6 +5,8 @@ import { getPackageById } from "@/lib/packages-store";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+export const dynamic = "force-dynamic";
+
 type Props = { params: Promise<{ id: string }> };
 
 export async function generateMetadata({ params }: Props) {

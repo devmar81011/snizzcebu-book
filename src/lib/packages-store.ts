@@ -55,20 +55,24 @@ async function readPackagesFromDisk(): Promise<TourPackage[] | null> {
 export async function readPackages(): Promise<TourPackage[]> {
   const store = globalStore();
 
-  // Same-instance writes win first (avoids brief Blob read lag after save).
-  if (store.packages?.length) {
-    return structuredClone(store.packages.map(normalizePackage));
-  }
-
+  // Always prefer Blob so every serverless instance sees the latest admin edits.
+  // Fall back to in-memory only when Blob is briefly unavailable after a write.
   if (hasBlobStore()) {
     const fromBlob = await readJsonBlob<TourPackage[]>(BLOB_PATH);
     if (Array.isArray(fromBlob) && fromBlob.length > 0) {
       store.packages = fromBlob.map(normalizePackage);
       return structuredClone(store.packages);
     }
+    if (store.packages?.length) {
+      return structuredClone(store.packages.map(normalizePackage));
+    }
     // No Blob file yet → fall back to repo seed (read-only on Vercel).
     const fromDisk = await readPackagesFromDisk();
     store.packages = fromDisk ?? seedPackages;
+    return structuredClone(store.packages.map(normalizePackage));
+  }
+
+  if (store.packages?.length) {
     return structuredClone(store.packages.map(normalizePackage));
   }
 

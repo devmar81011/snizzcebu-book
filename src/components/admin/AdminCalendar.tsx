@@ -23,8 +23,8 @@ function startWeekday(year: number, month: number) {
 }
 
 export function AdminCalendar({
-  bookings,
-  blockedDates,
+  bookings: initialBookings,
+  blockedDates: initialBlockedDates,
   packages,
   pendingAlertHours = 4,
 }: Props) {
@@ -43,6 +43,20 @@ export function AdminCalendar({
   const [packageFilter, setPackageFilter] = useState<string>("all");
   const [blockReason, setBlockReason] = useState("Unavailable");
   const [busy, setBusy] = useState(false);
+  const [blockedDates, setBlockedDates] = useState(initialBlockedDates);
+  const [blockedBaseline, setBlockedBaseline] = useState(initialBlockedDates);
+  const [bookings, setBookings] = useState(initialBookings);
+  const [bookingsBaseline, setBookingsBaseline] = useState(initialBookings);
+
+  if (initialBlockedDates !== blockedBaseline) {
+    setBlockedBaseline(initialBlockedDates);
+    setBlockedDates(initialBlockedDates);
+  }
+
+  if (initialBookings !== bookingsBaseline) {
+    setBookingsBaseline(initialBookings);
+    setBookings(initialBookings);
+  }
 
   const monthLabel = new Date(view.year, view.month, 1).toLocaleDateString(
     "en-PH",
@@ -85,34 +99,61 @@ export function AdminCalendar({
 
   async function blockSelected() {
     setBusy(true);
-    const response = await fetch("/api/blocked-dates", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        date: selectedKey,
-        packageId: packageFilter === "all" ? null : packageFilter,
-        reason: blockReason,
-      }),
-    });
-    setBusy(false);
-    if (!response.ok) {
-      window.alert("Could not block date");
-      return;
+    try {
+      const response = await fetch("/api/blocked-dates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: selectedKey,
+          packageId: packageFilter === "all" ? null : packageFilter,
+          reason: blockReason,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        window.alert(data.error || "Could not block date");
+        return;
+      }
+      if (Array.isArray(data.blockedDates)) {
+        setBlockedDates(data.blockedDates);
+      } else if (data.blockedDate) {
+        setBlockedDates((prev) => {
+          const withoutDup = prev.filter(
+            (b) =>
+              !(
+                b.date === data.blockedDate.date &&
+                b.packageId === data.blockedDate.packageId
+              ),
+          );
+          return [...withoutDup, data.blockedDate as BlockedDate];
+        });
+      }
+      router.refresh();
+    } finally {
+      setBusy(false);
     }
-    router.refresh();
   }
 
   async function unblock(id: string) {
     setBusy(true);
-    const response = await fetch(`/api/blocked-dates?id=${id}`, {
-      method: "DELETE",
-    });
-    setBusy(false);
-    if (!response.ok) {
-      window.alert("Could not unblock date");
-      return;
+    try {
+      const response = await fetch(`/api/blocked-dates?id=${id}`, {
+        method: "DELETE",
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        window.alert(data.error || "Could not unblock date");
+        return;
+      }
+      if (Array.isArray(data.blockedDates)) {
+        setBlockedDates(data.blockedDates);
+      } else {
+        setBlockedDates((prev) => prev.filter((b) => b.id !== id));
+      }
+      router.refresh();
+    } finally {
+      setBusy(false);
     }
-    router.refresh();
   }
 
   return (
@@ -238,7 +279,7 @@ export function AdminCalendar({
                 onClick={blockSelected}
                 className="rounded-xl border border-red-400/40 px-4 py-2 text-sm font-semibold text-red-100 transition hover:bg-red-500/15 disabled:opacity-50"
               >
-                Block date
+                {busy ? "Saving…" : "Block date"}
               </button>
             </div>
 
@@ -257,8 +298,9 @@ export function AdminCalendar({
                     </span>
                     <button
                       type="button"
+                      disabled={busy}
                       onClick={() => unblock(b.id)}
-                      className="text-xs font-semibold text-sun"
+                      className="text-xs font-semibold text-sun disabled:opacity-50"
                     >
                       Unblock
                     </button>

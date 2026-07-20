@@ -46,16 +46,19 @@ function safeEqual(a: string, b: string): boolean {
 
 async function readCredentialsFile(): Promise<Credentials | null> {
   const store = globalStore();
-  if (store.credentials) return { ...store.credentials };
 
+  // Always prefer Blob so password changes are visible on every instance.
   if (hasBlobStore()) {
     const fromBlob = await readJsonBlob<Partial<Credentials>>(BLOB_PATH);
     if (fromBlob?.passwordHash) {
       store.credentials = { passwordHash: fromBlob.passwordHash };
       return { ...store.credentials };
     }
+    if (store.credentials) return { ...store.credentials };
     return null;
   }
+
+  if (store.credentials) return { ...store.credentials };
 
   try {
     const raw = await fs.readFile(DATA_PATH, "utf8");
