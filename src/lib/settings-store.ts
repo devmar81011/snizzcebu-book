@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { hasBlobStore, readJsonBlob, writeJsonBlob } from "@/lib/blob-json";
+import { getSupabase, hasSupabaseStore } from "@/lib/supabase";
 
 export type AppSettings = {
   qrImageUrl: string;
@@ -17,6 +18,9 @@ export type AppSettings = {
 
 const DATA_PATH = path.join(process.cwd(), "data", "settings.json");
 const BLOB_PATH = "data/settings.json";
+const SETTINGS_KEY = "app";
+const LOCAL_WRITE_GRACE_MS = 60_000;
+
 export const DEFAULT_SETTINGS: AppSettings = {
   qrImageUrl: "/payments/sample-qr.svg",
   adminPhone: "09568853596",
@@ -37,8 +41,6 @@ function globalStore(): GlobalStore {
   if (!g.__snizzzSettings) g.__snizzzSettings = {};
   return g.__snizzzSettings;
 }
-
-const LOCAL_WRITE_GRACE_MS = 60_000;
 
 function normalizeReminderDays(value: unknown): number {
   const n = Number(value);
@@ -76,32 +78,60 @@ async function readSettingsFromDisk(): Promise<AppSettings | null> {
   }
 }
 
+async function readSettingsFromSupabase(): Promise<AppSettings | null> {
+  const { data, error } = await getSupabase()
+    .from("app_settings")
+    .select("value")
+    .eq("key", SETTINGS_KEY)
+    .maybeSingle();
+  if (error) throw new Error(`settings read failed: ${error.message}`);
+  if (!data?.value) return null;
+  return normalizeSettings(data.value as Partial<AppSettings>);
+}
+
+async function writeSettingsToSupabase(settings: AppSettings): Promise<void> {
+  const { error } = await getSupabase()
+    .from("app_settings")
+    .upsert(
+      {
+        key: SETTINGS_KEY,
+        value: settings,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "key" },
+    );
+  if (error) throw new Error(`settings write failed: ${error.message}`);
+}
+
 export async function readSettings(): Promise<AppSettings> {
   const store = globalStore();
 
-  if (hasBlobStore()) {
-    if (
-      store.settings &&
-      store.localWriteAt &&
-      Date.now() - store.localWriteAt < LOCAL_WRITE_GRACE_MS
-    ) {
-      return { ...store.settings };
-    }
+  if (
+    store.settings &&
+    store.localWriteAt &&
+    Date.now() - store.localWriteAt < LOCAL_WRITE_GRACE_MS
+  ) {
+    return { ...store.settings };
+  }
 
+  if (hasSupabaseStore()) {
+    const fromSb = await readSettingsFromSupabase();
+    if (fromSb) {
+      store.settings = fromSb;
+      return { ...fromSb };
+    }
+    if (store.settings) return { ...store.settings };
+    store.settings = { ...DEFAULTS };
+    return { ...DEFAULTS };
+  }
+
+  if (hasBlobStore()) {
     const fromBlob = await readJsonBlob<Partial<AppSettings>>(BLOB_PATH);
     if (fromBlob) {
-      if (
-        store.settings &&
-        store.localWriteAt &&
-        Date.now() - store.localWriteAt < LOCAL_WRITE_GRACE_MS
-      ) {
-        return { ...store.settings };
-      }
       store.settings = normalizeSettings(fromBlob);
       return { ...store.settings };
     }
     if (store.settings) return { ...store.settings };
-    // Do not fall back to repo data/settings.json on Vercel — it is a stale seed.
     store.settings = { ...DEFAULTS };
     return { ...DEFAULTS };
   }
@@ -126,6 +156,11 @@ export async function writeSettings(
   store.settings = next;
   store.localWriteAt = Date.now();
 
+  if (hasSupabaseStore()) {
+    await writeSettingsToSupabase(next);
+    return next;
+  }
+
   if (hasBlobStore()) {
     await writeJsonBlob(BLOB_PATH, next);
     return next;
@@ -135,7 +170,7 @@ export async function writeSettings(
     await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });
     await fs.writeFile(DATA_PATH, JSON.stringify(next, null, 2), "utf8");
   } catch {
-    // Local FS may be read-only (e.g. Vercel without Blob).
+    // Local FS may be read-only
   }
   return next;
 }

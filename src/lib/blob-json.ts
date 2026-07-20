@@ -1,4 +1,8 @@
-import { get, list, put } from "@vercel/blob";
+type Envelope<T> = {
+  rev: number;
+  updatedAt: string;
+  data: T;
+};
 
 function blobToken(): string | undefined {
   return process.env.BLOB_READ_WRITE_TOKEN || undefined;
@@ -8,31 +12,29 @@ export function hasBlobStore(): boolean {
   return Boolean(blobToken());
 }
 
+function versionsPrefix(pathname: string): string {
+  return `${pathname}.versions/`;
+}
+
+function versionPath(pathname: string, rev: number): string {
+  return `${versionsPrefix(pathname)}v-${String(rev).padStart(15, "0")}.json`;
+}
+
 async function streamToText(
   stream: ReadableStream<Uint8Array>,
 ): Promise<string> {
   return new Response(stream).text();
 }
 
-type Envelope<T> = {
-  rev: number;
-  updatedAt: string;
-  data: T;
-};
-
-function versionsPrefix(pathname: string): string {
-  return `${pathname}.versions/`;
-}
-
-function versionPath(pathname: string, rev: number): string {
-  // Zero-pad so lexicographic sort matches numeric rev order.
-  return `${versionsPrefix(pathname)}v-${String(rev).padStart(15, "0")}.json`;
+async function loadBlob() {
+  return import("@vercel/blob");
 }
 
 async function readLegacyPublic<T>(pathname: string): Promise<T | null> {
   const token = blobToken();
   if (!token) return null;
   try {
+    const { get } = await loadBlob();
     const result = await get(pathname, {
       access: "public",
       token,
@@ -55,16 +57,14 @@ async function readLegacyPublic<T>(pathname: string): Promise<T | null> {
 }
 
 /**
- * Read JSON for admin state.
- *
- * Prefer immutable versioned blobs (fresh pathname every write = no CDN
- * overwrite lag). Fall back to the legacy single public pathname.
+ * Read JSON for admin state (legacy Blob fallback).
  */
 export async function readJsonBlob<T>(pathname: string): Promise<T | null> {
   const token = blobToken();
   if (!token) return null;
 
   try {
+    const { list } = await loadBlob();
     const listed = await list({
       prefix: versionsPrefix(pathname),
       token,
@@ -74,7 +74,6 @@ export async function readJsonBlob<T>(pathname: string): Promise<T | null> {
       const newest = [...listed.blobs].sort((a, b) =>
         a.pathname < b.pathname ? 1 : a.pathname > b.pathname ? -1 : 0,
       )[0];
-      // Unique versioned URLs are immediately consistent after put().
       const res = await fetch(newest.url, { cache: "no-store" });
       if (res.ok) {
         const envelope = (await res.json()) as Envelope<T>;
@@ -89,9 +88,7 @@ export async function readJsonBlob<T>(pathname: string): Promise<T | null> {
 }
 
 /**
- * Write JSON without relying on overwrite of a single public pathname.
- * Overwriting public blobs can stay stale on the CDN for ~60s and made
- * package edits appear to save, then snap back.
+ * Write JSON to Blob (legacy fallback when Supabase is unavailable).
  */
 export async function writeJsonBlob(
   pathname: string,
@@ -102,6 +99,7 @@ export async function writeJsonBlob(
     throw new Error("BLOB_READ_WRITE_TOKEN is not configured");
   }
 
+  const { put } = await loadBlob();
   const rev = Date.now();
   const envelope: Envelope<unknown> = {
     rev,
@@ -110,7 +108,6 @@ export async function writeJsonBlob(
   };
   const body = JSON.stringify(envelope, null, 2);
 
-  // Brand-new pathname → immediately readable, no overwrite cache lag.
   await put(versionPath(pathname, rev), body, {
     access: "public",
     addRandomSuffix: false,
