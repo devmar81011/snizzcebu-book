@@ -32,13 +32,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid date" }, { status: 400 });
   }
 
-  const entry = await addBlockedDate({
+  const { entry, blockedDates } = await addBlockedDate({
     date: dateKey,
     packageId: body.packageId ?? null,
     reason: (body.reason || "Blocked by admin").trim(),
   });
 
-  const blockedDates = await readBlockedDates();
   return NextResponse.json({ blockedDate: entry, blockedDates }, { status: 201 });
 }
 
@@ -53,11 +52,10 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "id is required" }, { status: 400 });
   }
 
-  const ok = await removeBlockedDate(id);
+  const { ok, blockedDates } = await removeBlockedDate(id);
   if (!ok) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const blockedDates = await readBlockedDates();
   return NextResponse.json({ ok: true, blockedDates });
 }

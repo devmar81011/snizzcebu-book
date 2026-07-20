@@ -28,7 +28,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
 const DEFAULTS = DEFAULT_SETTINGS;
 
-type GlobalStore = { settings?: AppSettings };
+type GlobalStore = { settings?: AppSettings; localWriteAt?: number };
 
 function globalStore(): GlobalStore {
   const g = globalThis as typeof globalThis & {
@@ -37,6 +37,8 @@ function globalStore(): GlobalStore {
   if (!g.__snizzzSettings) g.__snizzzSettings = {};
   return g.__snizzzSettings;
 }
+
+const LOCAL_WRITE_GRACE_MS = 15_000;
 
 function normalizeReminderDays(value: unknown): number {
   const n = Number(value);
@@ -77,11 +79,24 @@ async function readSettingsFromDisk(): Promise<AppSettings | null> {
 export async function readSettings(): Promise<AppSettings> {
   const store = globalStore();
 
-  // Always prefer Blob so every serverless instance sees the latest settings.
-  // Fall back to in-memory only when Blob is briefly unavailable after a write.
   if (hasBlobStore()) {
+    if (
+      store.settings &&
+      store.localWriteAt &&
+      Date.now() - store.localWriteAt < LOCAL_WRITE_GRACE_MS
+    ) {
+      return { ...store.settings };
+    }
+
     const fromBlob = await readJsonBlob<Partial<AppSettings>>(BLOB_PATH);
     if (fromBlob) {
+      if (
+        store.settings &&
+        store.localWriteAt &&
+        Date.now() - store.localWriteAt < LOCAL_WRITE_GRACE_MS
+      ) {
+        return { ...store.settings };
+      }
       store.settings = normalizeSettings(fromBlob);
       return { ...store.settings };
     }
@@ -109,6 +124,7 @@ export async function writeSettings(
   const store = globalStore();
   const next = normalizeSettings(settings);
   store.settings = next;
+  store.localWriteAt = Date.now();
 
   if (hasBlobStore()) {
     await writeJsonBlob(BLOB_PATH, next);

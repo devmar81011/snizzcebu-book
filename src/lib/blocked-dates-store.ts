@@ -6,7 +6,13 @@ import { hasBlobStore, readJsonBlob, writeJsonBlob } from "@/lib/blob-json";
 const DATA_PATH = path.join(process.cwd(), "data", "blocked-dates.json");
 const BLOB_PATH = "data/blocked-dates.json";
 
-type GlobalStore = { blocked?: BlockedDate[] };
+/** Trust local memory briefly after a write — Blob get() can lag right after put(). */
+const LOCAL_WRITE_GRACE_MS = 15_000;
+
+type GlobalStore = {
+  blocked?: BlockedDate[];
+  localWriteAt?: number;
+};
 
 function globalStore(): GlobalStore {
   const g = globalThis as typeof globalThis & {
@@ -32,11 +38,26 @@ async function ensureDataFile(): Promise<void> {
 export async function readBlockedDates(): Promise<BlockedDate[]> {
   const store = globalStore();
 
-  // Always prefer Blob so every serverless instance sees the latest blocks.
-  // Fall back to in-memory only when Blob is briefly unavailable after a write.
   if (hasBlobStore()) {
+    // Same-instance write wins briefly so API responses / UI never see a stale Blob get().
+    if (
+      store.blocked &&
+      store.localWriteAt &&
+      Date.now() - store.localWriteAt < LOCAL_WRITE_GRACE_MS
+    ) {
+      return structuredClone(store.blocked);
+    }
+
     const fromBlob = await readJsonBlob<BlockedDate[]>(BLOB_PATH);
     if (Array.isArray(fromBlob)) {
+      // Don't clobber a fresher local write with an older Blob snapshot.
+      if (
+        store.blocked &&
+        store.localWriteAt &&
+        Date.now() - store.localWriteAt < LOCAL_WRITE_GRACE_MS
+      ) {
+        return structuredClone(store.blocked);
+      }
       store.blocked = fromBlob;
       return structuredClone(fromBlob);
     }
@@ -66,6 +87,7 @@ export async function readBlockedDates(): Promise<BlockedDate[]> {
 export async function writeBlockedDates(blocked: BlockedDate[]): Promise<void> {
   const store = globalStore();
   store.blocked = blocked;
+  store.localWriteAt = Date.now();
 
   if (hasBlobStore()) {
     await writeJsonBlob(BLOB_PATH, blocked);
@@ -82,7 +104,7 @@ export async function writeBlockedDates(blocked: BlockedDate[]): Promise<void> {
 
 export async function addBlockedDate(
   input: Omit<BlockedDate, "id">,
-): Promise<BlockedDate> {
+): Promise<{ entry: BlockedDate; blockedDates: BlockedDate[] }> {
   const blocked = await readBlockedDates();
   const existing = blocked.find(
     (b) => b.date === input.date && b.packageId === input.packageId,
@@ -90,7 +112,7 @@ export async function addBlockedDate(
   if (existing) {
     existing.reason = input.reason;
     await writeBlockedDates(blocked);
-    return existing;
+    return { entry: existing, blockedDates: structuredClone(blocked) };
   }
 
   const entry: BlockedDate = {
@@ -101,13 +123,17 @@ export async function addBlockedDate(
   };
   blocked.push(entry);
   await writeBlockedDates(blocked);
-  return entry;
+  return { entry, blockedDates: structuredClone(blocked) };
 }
 
-export async function removeBlockedDate(id: string): Promise<boolean> {
+export async function removeBlockedDate(
+  id: string,
+): Promise<{ ok: boolean; blockedDates: BlockedDate[] }> {
   const blocked = await readBlockedDates();
   const next = blocked.filter((b) => b.id !== id);
-  if (next.length === blocked.length) return false;
+  if (next.length === blocked.length) {
+    return { ok: false, blockedDates: structuredClone(blocked) };
+  }
   await writeBlockedDates(next);
-  return true;
+  return { ok: true, blockedDates: structuredClone(next) };
 }

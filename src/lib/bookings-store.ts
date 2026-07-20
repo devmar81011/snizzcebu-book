@@ -6,13 +6,15 @@ import { hasBlobStore, readJsonBlob, writeJsonBlob } from "@/lib/blob-json";
 const DATA_PATH = path.join(process.cwd(), "data", "bookings.json");
 const BLOB_PATH = "data/bookings.json";
 
-type GlobalStore = { bookings?: Booking[] };
+type GlobalStore = { bookings?: Booking[]; localWriteAt?: number };
 
 function globalStore(): GlobalStore {
   const g = globalThis as typeof globalThis & { __snizzzBookings?: GlobalStore };
   if (!g.__snizzzBookings) g.__snizzzBookings = {};
   return g.__snizzzBookings;
 }
+
+const LOCAL_WRITE_GRACE_MS = 15_000;
 
 function migrateBooking(raw: Record<string, unknown>): Booking {
   const statusRaw = String(raw.status || "pending");
@@ -62,10 +64,24 @@ function migrateList(parsed: unknown[]): Booking[] {
 export async function readBookings(): Promise<Booking[]> {
   const store = globalStore();
 
-  // Always prefer Blob so every serverless instance sees the latest bookings.
   if (hasBlobStore()) {
+    if (
+      store.bookings &&
+      store.localWriteAt &&
+      Date.now() - store.localWriteAt < LOCAL_WRITE_GRACE_MS
+    ) {
+      return structuredClone(store.bookings);
+    }
+
     const fromBlob = await readJsonBlob<unknown[]>(BLOB_PATH);
     if (Array.isArray(fromBlob)) {
+      if (
+        store.bookings &&
+        store.localWriteAt &&
+        Date.now() - store.localWriteAt < LOCAL_WRITE_GRACE_MS
+      ) {
+        return structuredClone(store.bookings);
+      }
       store.bookings = migrateList(fromBlob);
       return structuredClone(store.bookings);
     }
@@ -96,6 +112,7 @@ export async function readBookings(): Promise<Booking[]> {
 export async function writeBookings(bookings: Booking[]): Promise<void> {
   const store = globalStore();
   store.bookings = bookings;
+  store.localWriteAt = Date.now();
 
   if (hasBlobStore()) {
     await writeJsonBlob(BLOB_PATH, bookings);

@@ -14,7 +14,10 @@ export type PushSubscriptionJSON = {
 const DATA_PATH = path.join(process.cwd(), "data", "push-subscriptions.json");
 const BLOB_PATH = "data/push-subscriptions.json";
 
-type GlobalStore = { subscriptions?: PushSubscriptionJSON[] };
+type GlobalStore = {
+  subscriptions?: PushSubscriptionJSON[];
+  localWriteAt?: number;
+};
 
 function globalStore(): GlobalStore {
   const g = globalThis as typeof globalThis & {
@@ -24,12 +27,29 @@ function globalStore(): GlobalStore {
   return g.__snizzzPushSubs;
 }
 
+const LOCAL_WRITE_GRACE_MS = 15_000;
+
 export async function readPushSubscriptions(): Promise<PushSubscriptionJSON[]> {
   const store = globalStore();
 
   if (hasBlobStore()) {
+    if (
+      store.subscriptions &&
+      store.localWriteAt &&
+      Date.now() - store.localWriteAt < LOCAL_WRITE_GRACE_MS
+    ) {
+      return structuredClone(store.subscriptions);
+    }
+
     const fromBlob = await readJsonBlob<PushSubscriptionJSON[]>(BLOB_PATH);
     if (Array.isArray(fromBlob)) {
+      if (
+        store.subscriptions &&
+        store.localWriteAt &&
+        Date.now() - store.localWriteAt < LOCAL_WRITE_GRACE_MS
+      ) {
+        return structuredClone(store.subscriptions);
+      }
       store.subscriptions = fromBlob;
       return structuredClone(fromBlob);
     }
@@ -56,6 +76,7 @@ export async function writePushSubscriptions(
 ): Promise<void> {
   const store = globalStore();
   store.subscriptions = subscriptions;
+  store.localWriteAt = Date.now();
 
   if (hasBlobStore()) {
     await writeJsonBlob(BLOB_PATH, subscriptions);
