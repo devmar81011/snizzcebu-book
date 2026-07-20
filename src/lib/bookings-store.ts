@@ -30,6 +30,7 @@ function migrateBooking(raw: Record<string, unknown>): Booking {
   return {
     id: String(raw.id),
     createdAt: String(raw.createdAt || new Date().toISOString()),
+    completedAt: raw.completedAt ? String(raw.completedAt) : undefined,
     tourDate: String(raw.tourDate),
     packageId: String(raw.packageId),
     packageTitle: String(raw.packageTitle || ""),
@@ -158,7 +159,15 @@ export async function updateBookingStatus(
   const bookings = await readBookings();
   const index = bookings.findIndex((b) => b.id === id);
   if (index < 0) return null;
-  bookings[index] = { ...bookings[index], status };
+  const prev = bookings[index];
+  const next: Booking = { ...prev, status };
+  if (status === "completed" && prev.status !== "completed") {
+    next.completedAt = new Date().toISOString();
+  }
+  if (status !== "completed") {
+    delete next.completedAt;
+  }
+  bookings[index] = next;
   await writeBookings(bookings);
   return bookings[index];
 }
