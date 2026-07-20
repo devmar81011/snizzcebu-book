@@ -4,7 +4,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 
-const links = [{ href: "/superadmin/payments", label: "Payments" }];
+const links = [
+  { href: "/superadmin/payments", label: "Payments" },
+  { href: "/superadmin/tools", label: "Reset / clean" },
+];
 
 export function SuperadminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();

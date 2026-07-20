@@ -1,10 +1,12 @@
 export type CommissionPayoutStatus = "collected";
 
+export type CommissionPeriodType = "week" | "month" | "alltime";
+
 export type CommissionPayout = {
   id: string;
-  /** week:YYYY-MM-DD_YYYY-MM-DD or month:YYYY-MM */
+  /** week:YYYY-MM-DD_YYYY-MM-DD | month:YYYY-MM | alltime:all */
   periodKey: string;
-  periodType: "week" | "month";
+  periodType: CommissionPeriodType;
   label: string;
   incomeAmount: number;
   commissionAmount: number;
@@ -20,4 +22,8 @@ export function weekPeriodKey(from: string, to: string): string {
 
 export function monthPeriodKey(yearMonth: string): string {
   return `month:${yearMonth}`;
+}
+
+export function allTimePeriodKey(): string {
+  return "alltime:all";
 }

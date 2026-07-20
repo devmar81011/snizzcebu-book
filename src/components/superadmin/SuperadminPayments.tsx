@@ -13,10 +13,15 @@ import {
   startOfMonth,
   startOfWeek,
   sumIncome,
+  toDateKey,
   weeklyIncomeInMonth,
 } from "@/lib/bookings";
-import type { CommissionPayout } from "@/lib/commission";
-import { monthPeriodKey, weekPeriodKey } from "@/lib/commission";
+import type { CommissionPeriodType, CommissionPayout } from "@/lib/commission";
+import {
+  allTimePeriodKey,
+  monthPeriodKey,
+  weekPeriodKey,
+} from "@/lib/commission";
 import { formatBookingRef } from "@/lib/notify";
 
 type Props = {
@@ -27,7 +32,7 @@ type Props = {
 };
 
 type CollectTarget = {
-  periodType: "week" | "month";
+  periodType: CommissionPeriodType;
   periodKey: string;
   label: string;
   incomeAmount: number;
@@ -157,7 +162,35 @@ export function SuperadminPayments({
   const selectedStart = startOfMonth(new Date(year, monthIndex - 1, 1));
   const selectedEnd = endOfMonth(selectedStart);
 
-  const week = sumIncome(bookings, startOfWeek(now), endOfDay(now));
+  const thisWeekStart = startOfWeek(now);
+  const thisWeekEnd = endOfDay(
+    new Date(
+      thisWeekStart.getFullYear(),
+      thisWeekStart.getMonth(),
+      thisWeekStart.getDate() + 6,
+    ),
+  );
+  const thisWeekFrom = toDateKey(thisWeekStart);
+  const thisWeekTo = toDateKey(thisWeekEnd);
+  const thisWeekKey = weekPeriodKey(thisWeekFrom, thisWeekTo);
+  const thisWeek = sumIncome(bookings, thisWeekStart, thisWeekEnd);
+  const thisWeekCommission = commissionOf(thisWeek.amount);
+
+  const thisMonthYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const thisMonthStart = startOfMonth(now);
+  const thisMonthEnd = endOfMonth(thisMonthStart);
+  const thisMonthKey = monthPeriodKey(thisMonthYm);
+  const thisMonth = sumIncome(bookings, thisMonthStart, thisMonthEnd);
+  const thisMonthCommission = commissionOf(thisMonth.amount);
+
+  const allTimeKey = allTimePeriodKey();
+  const allTime = sumIncome(
+    bookings,
+    new Date(2000, 0, 1),
+    endOfDay(now),
+  );
+  const allTimeCommission = commissionOf(allTime.amount);
+
   const selectedMonth = sumIncome(bookings, selectedStart, selectedEnd);
   const weeks: IncomeBucket[] = weeklyIncomeInMonth(
     bookings,
@@ -170,7 +203,6 @@ export function SuperadminPayments({
     selectedEnd,
   );
 
-  const weekCommission = commissionOf(week.amount);
   const monthCommission = commissionOf(selectedMonth.amount);
   const rateLabel = `${Math.round(COMMISSION_RATE * 100)}%`;
 
@@ -212,7 +244,7 @@ export function SuperadminPayments({
     if (collectTarget.periodType === "week") {
       form.set("from", collectTarget.from || "");
       form.set("to", collectTarget.to || "");
-    } else {
+    } else if (collectTarget.periodType === "month") {
       form.set("yearMonth", collectTarget.yearMonth || month);
     }
 
@@ -286,70 +318,120 @@ export function SuperadminPayments({
         </label>
       </div>
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-8 grid gap-4 sm:grid-cols-3">
         <div className="rounded-2xl border border-sun/25 bg-sun/10 px-5 py-5">
           <p className="text-[0.68rem] font-semibold tracking-[0.16em] text-sun uppercase">
-            This week income
+            This week
           </p>
           <p className="mt-3 font-[family-name:var(--font-syne)] text-3xl font-bold text-sun">
-            {formatMoney(week.amount)}
+            {formatMoney(thisWeek.amount)}
           </p>
           <p className="mt-1 text-sm text-white/60">
-            {week.count} paid · Commission {formatMoney(weekCommission)}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-white/12 bg-white/[0.04] px-5 py-5">
-          <p className="text-[0.68rem] font-semibold tracking-[0.16em] text-white/45 uppercase">
-            Selected month income
-          </p>
-          <p className="mt-3 font-[family-name:var(--font-syne)] text-3xl font-bold">
-            {formatMoney(selectedMonth.amount)}
-          </p>
-          <p className="mt-1 text-sm text-white/60">
-            {formatMonthLabel(month)} · {selectedMonth.count} paid
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-palm/30 bg-palm/10 px-5 py-5">
-          <p className="text-[0.68rem] font-semibold tracking-[0.16em] text-[#d7f5a8] uppercase">
-            Commission ({rateLabel}) · week
-          </p>
-          <p className="mt-3 font-[family-name:var(--font-syne)] text-3xl font-bold text-[#d7f5a8]">
-            {formatMoney(weekCommission)}
-          </p>
-          <p className="mt-1 text-sm text-white/60">Your cut this week</p>
-        </div>
-
-        <div className="rounded-2xl border border-palm/30 bg-palm/10 px-5 py-5">
-          <p className="text-[0.68rem] font-semibold tracking-[0.16em] text-[#d7f5a8] uppercase">
-            Commission ({rateLabel}) · month
-          </p>
-          <p className="mt-3 font-[family-name:var(--font-syne)] text-3xl font-bold text-[#d7f5a8]">
-            {formatMoney(monthCommission)}
+            {thisWeek.count} paid · Commission{" "}
+            {formatMoney(thisWeekCommission)}
           </p>
           <div className="mt-3">
             <StatusCell
-              payout={payoutByKey.get(monthKey)}
+              payout={payoutByKey.get(thisWeekKey)}
+              busy={busy}
+              onCollect={() =>
+                openCollect({
+                  periodType: "week",
+                  periodKey: thisWeekKey,
+                  label: `This week · ${thisWeekFrom} – ${thisWeekTo}`,
+                  incomeAmount: thisWeek.amount,
+                  commissionAmount: thisWeekCommission,
+                  from: thisWeekFrom,
+                  to: thisWeekTo,
+                })
+              }
+              onViewProof={() => {
+                const p = payoutByKey.get(thisWeekKey);
+                if (p) setProofOpen(p);
+              }}
+              onUndo={() => undoCollected(thisWeekKey)}
+            />
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-palm/30 bg-palm/10 px-5 py-5">
+          <p className="text-[0.68rem] font-semibold tracking-[0.16em] text-[#d7f5a8] uppercase">
+            This month
+          </p>
+          <p className="mt-3 font-[family-name:var(--font-syne)] text-3xl font-bold text-[#d7f5a8]">
+            {formatMoney(thisMonth.amount)}
+          </p>
+          <p className="mt-1 text-sm text-white/60">
+            {formatMonthLabel(thisMonthYm)} · {thisMonth.count} paid ·
+            Commission {formatMoney(thisMonthCommission)}
+          </p>
+          <div className="mt-3">
+            <StatusCell
+              payout={payoutByKey.get(thisMonthKey)}
               busy={busy}
               onCollect={() =>
                 openCollect({
                   periodType: "month",
-                  periodKey: monthKey,
-                  label: formatMonthLabel(month),
-                  incomeAmount: selectedMonth.amount,
-                  commissionAmount: monthCommission,
-                  yearMonth: month,
+                  periodKey: thisMonthKey,
+                  label: formatMonthLabel(thisMonthYm),
+                  incomeAmount: thisMonth.amount,
+                  commissionAmount: thisMonthCommission,
+                  yearMonth: thisMonthYm,
                 })
               }
               onViewProof={() => {
-                const p = payoutByKey.get(monthKey);
+                const p = payoutByKey.get(thisMonthKey);
                 if (p) setProofOpen(p);
               }}
-              onUndo={() => undoCollected(monthKey)}
+              onUndo={() => undoCollected(thisMonthKey)}
             />
           </div>
         </div>
+
+        <div className="rounded-2xl border border-white/12 bg-white/[0.04] px-5 py-5">
+          <p className="text-[0.68rem] font-semibold tracking-[0.16em] text-white/45 uppercase">
+            All time
+          </p>
+          <p className="mt-3 font-[family-name:var(--font-syne)] text-3xl font-bold">
+            {formatMoney(allTime.amount)}
+          </p>
+          <p className="mt-1 text-sm text-white/60">
+            {allTime.count} paid · Commission {formatMoney(allTimeCommission)}
+          </p>
+          <div className="mt-3">
+            <StatusCell
+              payout={payoutByKey.get(allTimeKey)}
+              busy={busy}
+              onCollect={() =>
+                openCollect({
+                  periodType: "alltime",
+                  periodKey: allTimeKey,
+                  label: "All time",
+                  incomeAmount: allTime.amount,
+                  commissionAmount: allTimeCommission,
+                })
+              }
+              onViewProof={() => {
+                const p = payoutByKey.get(allTimeKey);
+                if (p) setProofOpen(p);
+              }}
+              onUndo={() => undoCollected(allTimeKey)}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-white/12 bg-white/[0.03] px-5 py-4">
+        <p className="text-[0.68rem] font-semibold tracking-[0.16em] text-white/45 uppercase">
+          Filtered month · {formatMonthLabel(month)}
+        </p>
+        <p className="mt-2 text-lg font-semibold">
+          {formatMoney(selectedMonth.amount)}
+          <span className="ml-2 text-sm font-normal text-white/55">
+            · {selectedMonth.count} paid · Commission{" "}
+            {formatMoney(monthCommission)}
+          </span>
+        </p>
       </div>
 
       <section className="mt-8 rounded-2xl border border-white/12 bg-white/[0.03] p-5">
