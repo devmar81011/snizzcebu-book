@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import {
   ensureRatesLength,
@@ -103,5 +104,8 @@ export async function POST(request: Request) {
   }
 
   const packages = await upsertPackage(pkg);
+  revalidatePath("/admin/packages");
+  revalidatePath(`/admin/packages/${pkg.id}`);
+  revalidatePath("/");
   return NextResponse.json({ package: pkg, packages }, { status: 201 });
 }

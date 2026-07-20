@@ -22,8 +22,8 @@ function globalStore(): GlobalStore {
   return g.__snizzzPackages;
 }
 
-/** Trust local memory briefly after a write — Blob get() can lag right after put(). */
-const LOCAL_WRITE_GRACE_MS = 15_000;
+/** Trust local memory briefly after a write. */
+const LOCAL_WRITE_GRACE_MS = 60_000;
 
 async function ensureDataFile(): Promise<void> {
   try {

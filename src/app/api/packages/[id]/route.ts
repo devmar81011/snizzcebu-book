@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import {
   ensureRatesLength,
@@ -118,6 +119,9 @@ export async function PUT(request: Request, context: Ctx) {
   };
 
   const packages = await upsertPackage(pkg);
+  revalidatePath("/admin/packages");
+  revalidatePath(`/admin/packages/${id}`);
+  revalidatePath("/");
   return NextResponse.json({ package: pkg, packages });
 }
 
@@ -133,5 +137,8 @@ export async function DELETE(_request: Request, context: Ctx) {
   }
 
   const packages = await deletePackage(id);
+  revalidatePath("/admin/packages");
+  revalidatePath(`/admin/packages/${id}`);
+  revalidatePath("/");
   return NextResponse.json({ ok: true, packages });
 }

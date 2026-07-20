@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { toDateKey } from "@/lib/bookings";
 import {

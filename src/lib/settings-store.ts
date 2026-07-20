@@ -38,7 +38,7 @@ function globalStore(): GlobalStore {
   return g.__snizzzSettings;
 }
 
-const LOCAL_WRITE_GRACE_MS = 15_000;
+const LOCAL_WRITE_GRACE_MS = 60_000;
 
 function normalizeReminderDays(value: unknown): number {
   const n = Number(value);
