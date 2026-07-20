@@ -57,17 +57,29 @@ export function AdminPwaNotifications() {
     };
     window.addEventListener("beforeinstallprompt", onBeforeInstall);
 
+    let cancelled = false;
+
     navigator.serviceWorker
       ?.register("/sw.js")
       .then(async (reg) => {
         const sub = await reg.pushManager.getSubscription();
-        setEnabled(Boolean(sub));
+        if (!cancelled) setEnabled(Boolean(sub));
       })
       .catch(() => undefined);
 
-    refreshPushStatus().catch(() => undefined);
+    fetch("/api/push/vapid")
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        setConfigured(Boolean(data.configured));
+        setSubscriberCount(Number(data.subscriberCount) || 0);
+      })
+      .catch(() => {
+        if (!cancelled) setConfigured(false);
+      });
 
     return () => {
+      cancelled = true;
       window.removeEventListener("beforeinstallprompt", onBeforeInstall);
     };
   }, []);
