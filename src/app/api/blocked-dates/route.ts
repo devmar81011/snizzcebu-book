@@ -39,6 +39,7 @@ export async function POST(request: Request) {
     reason: (body.reason || "Blocked by admin").trim(),
   });
 
+  revalidatePath("/admin/calendar");
   return NextResponse.json({ blockedDate: entry, blockedDates }, { status: 201 });
 }
 
@@ -58,5 +59,6 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  revalidatePath("/admin/calendar");
   return NextResponse.json({ ok: true, blockedDates });
 }
