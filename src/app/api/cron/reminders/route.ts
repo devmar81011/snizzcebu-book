@@ -17,7 +17,8 @@ export async function GET(request: Request) {
   }
 
   const settings = await readSettings();
-  const daysBefore = Math.max(0, settings.reminderDaysBefore || 1);
+  // Use ?? so 0 ("remind on tour day") is not treated as missing.
+  const daysBefore = Math.max(0, settings.reminderDaysBefore ?? 1);
   const bookings = await readBookings();
 
   const today = new Date();
@@ -45,9 +46,15 @@ export async function GET(request: Request) {
       .map((b) => b.customerName)
       .join(", ");
     const more = due.length > 3 ? ` +${due.length - 3} more` : "";
+    const when =
+      daysBefore === 0
+        ? "today"
+        : daysBefore === 1
+          ? "tomorrow"
+          : `in ${daysBefore} days`;
     reminderResult = await sendPushToAll({
       title: "Upcoming Snizzz booking",
-      body: `${due.length} booking(s) in ${daysBefore} day(s): ${names}${more}`,
+      body: `${due.length} booking(s) ${when}: ${names}${more}`,
       url: "/admin/calendar",
       tag: `reminder-${targetKey}`,
     });
