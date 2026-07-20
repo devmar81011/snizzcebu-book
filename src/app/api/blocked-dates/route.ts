@@ -27,13 +27,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Date is required" }, { status: 400 });
   }
 
-  const parsed = new Date(body.date);
-  if (Number.isNaN(parsed.getTime())) {
+  const dateKey = toDateKey(body.date);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
     return NextResponse.json({ error: "Invalid date" }, { status: 400 });
   }
 
   const entry = await addBlockedDate({
-    date: toDateKey(parsed),
+    date: dateKey,
     packageId: body.packageId ?? null,
     reason: (body.reason || "Blocked by admin").trim(),
   });

@@ -7,6 +7,8 @@ import { readPackages } from "@/lib/packages-store";
 import { readSettings } from "@/lib/settings-store";
 import { redirect } from "next/navigation";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Calendar | Admin",
 };

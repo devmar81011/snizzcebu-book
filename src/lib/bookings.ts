@@ -27,6 +27,11 @@ export type BlockedDate = {
 };
 
 export function toDateKey(input: Date | string): string {
+  // Keep calendar YYYY-MM-DD strings as-is so UTC parsing cannot shift the day.
+  if (typeof input === "string") {
+    const match = /^(\d{4}-\d{2}-\d{2})/.exec(input.trim());
+    if (match) return match[1];
+  }
   const d = typeof input === "string" ? new Date(input) : input;
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");

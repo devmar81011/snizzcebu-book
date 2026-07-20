@@ -62,18 +62,20 @@ function migrateList(parsed: unknown[]): Booking[] {
 export async function readBookings(): Promise<Booking[]> {
   const store = globalStore();
 
-  if (store.bookings) return structuredClone(store.bookings);
-
+  // Always prefer Blob so every serverless instance sees the latest bookings.
   if (hasBlobStore()) {
     const fromBlob = await readJsonBlob<unknown[]>(BLOB_PATH);
     if (Array.isArray(fromBlob)) {
       store.bookings = migrateList(fromBlob);
       return structuredClone(store.bookings);
     }
+    if (store.bookings) return structuredClone(store.bookings);
     // Ignore repo data/bookings.json on Vercel when Blob has no file yet.
     store.bookings = [];
     return [];
   }
+
+  if (store.bookings) return structuredClone(store.bookings);
 
   await ensureDataFile();
   try {

@@ -1,21 +1,46 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { TourPackage } from "@/lib/destinations";
 import { formatPhp } from "@/lib/destinations";
 
-export function PackageList({ packages }: { packages: TourPackage[] }) {
+export function PackageList({
+  packages: initialPackages,
+}: {
+  packages: TourPackage[];
+}) {
   const router = useRouter();
+  const [packages, setPackages] = useState(initialPackages);
+  const [baseline, setBaseline] = useState(initialPackages);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  // Sync when the server re-renders with fresher props (after router.refresh).
+  if (initialPackages !== baseline) {
+    setBaseline(initialPackages);
+    setPackages(initialPackages);
+  }
 
   async function onDelete(id: string, title: string) {
     if (!window.confirm(`Delete “${title}”?`)) return;
-    const response = await fetch(`/api/packages/${id}`, { method: "DELETE" });
-    if (!response.ok) {
-      window.alert("Could not delete package");
-      return;
+    setBusyId(id);
+    try {
+      const response = await fetch(`/api/packages/${id}`, { method: "DELETE" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        window.alert(data.error || "Could not delete package");
+        return;
+      }
+      if (Array.isArray(data.packages)) {
+        setPackages(data.packages);
+      } else {
+        setPackages((prev) => prev.filter((pkg) => pkg.id !== id));
+      }
+      router.refresh();
+    } finally {
+      setBusyId(null);
     }
-    router.refresh();
   }
 
   return (
@@ -61,7 +86,7 @@ export function PackageList({ packages }: { packages: TourPackage[] }) {
                       {pkg.nights > 0
                         ? ` / ${pkg.nights} night${pkg.nights === 1 ? "" : "s"}`
                         : ""}
-                      · {pkg.days}D/{pkg.nights}N · from {formatPhp(sampleRate)}
+                      · from {formatPhp(sampleRate)}
                       /person
                     </p>
                     {pkg.destinations.length > 0 ? (
@@ -79,10 +104,11 @@ export function PackageList({ packages }: { packages: TourPackage[] }) {
                     </Link>
                     <button
                       type="button"
+                      disabled={busyId === pkg.id}
                       onClick={() => onDelete(pkg.id, pkg.title)}
-                      className="rounded-lg border border-red-400/30 px-3 py-1.5 text-sm font-semibold text-red-200 transition hover:bg-red-500/15"
+                      className="rounded-lg border border-red-400/30 px-3 py-1.5 text-sm font-semibold text-red-200 transition hover:bg-red-500/15 disabled:opacity-50"
                     >
-                      Delete
+                      {busyId === pkg.id ? "Deleting…" : "Delete"}
                     </button>
                   </div>
                 </div>

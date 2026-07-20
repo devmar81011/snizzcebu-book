@@ -77,19 +77,21 @@ async function readSettingsFromDisk(): Promise<AppSettings | null> {
 export async function readSettings(): Promise<AppSettings> {
   const store = globalStore();
 
-  // Same-instance writes win first (avoids brief Blob read lag after PUT).
-  if (store.settings) return { ...store.settings };
-
+  // Always prefer Blob so every serverless instance sees the latest settings.
+  // Fall back to in-memory only when Blob is briefly unavailable after a write.
   if (hasBlobStore()) {
     const fromBlob = await readJsonBlob<Partial<AppSettings>>(BLOB_PATH);
     if (fromBlob) {
       store.settings = normalizeSettings(fromBlob);
       return { ...store.settings };
     }
+    if (store.settings) return { ...store.settings };
     // Do not fall back to repo data/settings.json on Vercel — it is a stale seed.
     store.settings = { ...DEFAULTS };
     return { ...DEFAULTS };
   }
+
+  if (store.settings) return { ...store.settings };
 
   const fromDisk = await readSettingsFromDisk();
   if (fromDisk) {
