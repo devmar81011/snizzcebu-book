@@ -25,26 +25,16 @@ function versionsPrefix(pathname: string): string {
 }
 
 function versionPath(pathname: string, rev: number): string {
-  return `${versionsPrefix(pathname)}v-${rev}.json`;
+  // Zero-pad so lexicographic sort matches numeric rev order.
+  return `${versionsPrefix(pathname)}v-${String(rev).padStart(15, "0")}.json`;
 }
 
-function privatePointerPath(pathname: string): string {
-  return `private/${pathname}`;
-}
-
-async function readViaGet<T>(
-  pathname: string,
-  access: "public" | "private",
-): Promise<T | null> {
+async function readLegacyPublic<T>(pathname: string): Promise<T | null> {
   const token = blobToken();
   if (!token) return null;
-
   try {
     const result = await get(pathname, {
-      access,
-      // Private + useCache:false is required for overwrite consistency.
-      // Public overwrites can stay stale for up to ~60s on the CDN.
-      ...(access === "private" ? { useCache: false as const } : {}),
+      access: "public",
       token,
     });
     if (!result || result.statusCode !== 200 || !result.stream) return null;
@@ -66,8 +56,9 @@ async function readViaGet<T>(
 
 /**
  * Read JSON for admin state.
- * Prefer immutable versioned blobs (no CDN overwrite lag), then private pointer,
- * then legacy public pathname for migration.
+ *
+ * Prefer immutable versioned blobs (fresh pathname every write = no CDN
+ * overwrite lag). Fall back to the legacy single public pathname.
  */
 export async function readJsonBlob<T>(pathname: string): Promise<T | null> {
   const token = blobToken();
@@ -83,31 +74,24 @@ export async function readJsonBlob<T>(pathname: string): Promise<T | null> {
       const newest = [...listed.blobs].sort((a, b) =>
         a.pathname < b.pathname ? 1 : a.pathname > b.pathname ? -1 : 0,
       )[0];
-      const result = await get(newest.pathname, {
-        access: "private",
-        useCache: false,
-        token,
-      });
-      if (result?.statusCode === 200 && result.stream) {
-        const text = await streamToText(result.stream);
-        const envelope = JSON.parse(text) as Envelope<T>;
+      // Unique versioned URLs are immediately consistent after put().
+      const res = await fetch(newest.url, { cache: "no-store" });
+      if (res.ok) {
+        const envelope = (await res.json()) as Envelope<T>;
         if (envelope && "data" in envelope) return envelope.data;
       }
     }
   } catch {
-    // fall through to pointer / legacy
+    // fall through to legacy
   }
 
-  const fromPrivate = await readViaGet<T>(privatePointerPath(pathname), "private");
-  if (fromPrivate !== null) return fromPrivate;
-
-  // Legacy public overwrite files from earlier deploys.
-  return readViaGet<T>(pathname, "public");
+  return readLegacyPublic<T>(pathname);
 }
 
 /**
- * Write JSON so the next read cannot see a stale CDN overwrite.
- * Each save creates a new immutable version object + a private pointer.
+ * Write JSON without relying on overwrite of a single public pathname.
+ * Overwriting public blobs can stay stale on the CDN for ~60s and made
+ * package edits appear to save, then snap back.
  */
 export async function writeJsonBlob(
   pathname: string,
@@ -126,20 +110,12 @@ export async function writeJsonBlob(
   };
   const body = JSON.stringify(envelope, null, 2);
 
-  // Immutable version — brand-new pathname, immediately consistent.
+  // Brand-new pathname → immediately readable, no overwrite cache lag.
   await put(versionPath(pathname, rev), body, {
-    access: "private",
+    access: "public",
     addRandomSuffix: false,
     contentType: "application/json",
     token,
-  });
-
-  // Private pointer for fast latest lookup with consistent reads.
-  await put(privatePointerPath(pathname), body, {
-    access: "private",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: "application/json",
-    token,
+    cacheControlMaxAge: 60 * 60 * 24 * 365,
   });
 }
