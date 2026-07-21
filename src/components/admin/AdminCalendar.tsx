@@ -178,24 +178,44 @@ export function AdminCalendar({
       </p>
 
       <div className="mt-6 flex flex-wrap gap-3">
-        <label className="text-sm">
-          <span className="mb-1 block text-[0.65rem] tracking-[0.12em] text-white/45 uppercase">
+        <label className="block text-sm">
+          <span className="mb-1.5 block text-[0.68rem] font-semibold tracking-[0.14em] text-white/55 uppercase">
             Package filter
           </span>
-          <select
-            value={packageFilter}
-            onChange={(e) => setPackageFilter(e.target.value)}
-            className="rounded-xl border border-white/15 bg-white/5 px-3 py-2 outline-none"
-          >
-            <option value="all" className="bg-ocean">
-              All packages
-            </option>
-            {packages.map((pkg) => (
-              <option key={pkg.id} value={pkg.id} className="bg-ocean">
-                {pkg.title}
+          <div className="relative min-w-[12rem]">
+            <select
+              value={packageFilter}
+              onChange={(e) => setPackageFilter(e.target.value)}
+              className="w-full appearance-none rounded-xl border border-white/15 bg-white/5 py-2.5 pr-12 pl-3.5 text-sm outline-none focus:border-sun/60"
+            >
+              <option value="all" className="bg-ocean text-white">
+                All packages
               </option>
-            ))}
-          </select>
+              {packages.map((pkg) => (
+                <option
+                  key={pkg.id}
+                  value={pkg.id}
+                  className="bg-ocean text-white"
+                >
+                  {pkg.title}
+                </option>
+              ))}
+            </select>
+            <span
+              aria-hidden
+              className="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 text-sun"
+            >
+              <svg width="12" height="8" viewBox="0 0 12 8" fill="none">
+                <path
+                  d="M1 1.5L6 6.5L11 1.5"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+          </div>
         </label>
       </div>
 
